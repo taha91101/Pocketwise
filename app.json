@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "pocketwise_tmp",
-    "slug": "pocketwise_tmp",
+    "name": "PocketWise",
+    "slug": "pocketwise",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,10 +16,19 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.taha_911.pocketwise"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "db6674ea-3c16-41da-8ece-8426af9a7ac9"
+      }
     }
   }
 }
