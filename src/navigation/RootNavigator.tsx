@@ -41,6 +41,9 @@ export const RootNavigator: React.FC = () => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         lastBackgroundTime.current = Date.now();
       } else if (nextAppState === 'active') {
+        // Re-sync any UPI transactions captured in native storage while in background
+        useAppStore.getState().syncDetectedTransactions();
+
         if (securityEnabled && lastBackgroundTime.current) {
           const elapsedMs = Date.now() - lastBackgroundTime.current;
           const timeoutMs =
