@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -14,6 +16,8 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { Feather } from '@expo/vector-icons';
+import { EditTransactionModal } from '../../components/modals/EditTransactionModal';
+import { pickReceiptFromGallery, captureReceiptWithCamera } from '../../services/receiptService';
 
 export interface TransactionDetailScreenProps {
   route: any;
@@ -30,9 +34,12 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
   const transactions = useAppStore((state) => state.transactions);
   const deleteTransaction = useAppStore((state) => state.deleteTransaction);
   const duplicateTransaction = useAppStore((state) => state.duplicateTransaction);
+  const updateTransaction = useAppStore((state) => state.updateTransaction);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isViewingFullReceipt, setIsViewingFullReceipt] = useState(false);
 
   const transaction = transactions.find((t) => t.id === transactionId);
 
@@ -94,15 +101,26 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
         <AppText variant="h3" weight="700">
           Transaction Details
         </AppText>
-        <TouchableOpacity
-          onPress={handleDuplicate}
-          style={[
-            styles.navBtn,
-            { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md },
-          ]}
-        >
-          <Feather name="copy" size={18} color={colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => setIsEditModalOpen(true)}
+            style={[
+              styles.navBtn,
+              { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, marginRight: 8 },
+            ]}
+          >
+            <Feather name="edit-2" size={17} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleDuplicate}
+            style={[
+              styles.navBtn,
+              { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md },
+            ]}
+          >
+            <Feather name="copy" size={17} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
@@ -205,8 +223,186 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
           <DetailRow label="Reference ID" value={transaction.id} icon="hash" isLast />
         </View>
 
+        {/* Receipt / Attachment Section */}
+        <View
+          style={[
+            styles.infoSection,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              padding: spacing.lg,
+              marginTop: spacing.lg,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
+            <Feather name="paperclip" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+            <AppText variant="subtitle2" weight="700">
+              Receipt / Attachment
+            </AppText>
+          </View>
+
+          {transaction.receiptUri ? (
+            <View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setIsViewingFullReceipt(true)}
+                style={{
+                  position: 'relative',
+                  borderRadius: radius.lg,
+                  overflow: 'hidden',
+                  marginTop: spacing.xs,
+                }}
+              >
+                <Image
+                  source={{ uri: transaction.receiptUri }}
+                  style={{
+                    width: '100%',
+                    height: 190,
+                    borderRadius: radius.lg,
+                    backgroundColor: colors.surfaceVariant,
+                  }}
+                  resizeMode="cover"
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: radius.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Feather name="maximize-2" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <AppText variant="caption" color="#FFFFFF" weight="600">
+                    Full Screen
+                  </AppText>
+                </View>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.sm, gap: spacing.sm }}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={async () => {
+                    const uri = await pickReceiptFromGallery();
+                    if (uri) {
+                      await updateTransaction(transaction.id, { receiptUri: uri });
+                    }
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 6,
+                    backgroundColor: colors.surfaceVariant,
+                    borderRadius: radius.md,
+                  }}
+                >
+                  <Feather name="refresh-cw" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+                  <AppText variant="caption" weight="600" color={colors.primary}>
+                    Replace
+                  </AppText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={async () => {
+                    await updateTransaction(transaction.id, { receiptUri: undefined });
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 6,
+                    backgroundColor: `${colors.error}15`,
+                    borderRadius: radius.md,
+                  }}
+                >
+                  <Feather name="trash-2" size={13} color={colors.error} style={{ marginRight: 4 }} />
+                  <AppText variant="caption" weight="600" color={colors.error}>
+                    Remove
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={{ marginTop: spacing.xs }}>
+              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+                No receipt attached to this transaction.
+              </AppText>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={async () => {
+                    const uri = await captureReceiptWithCamera();
+                    if (uri) {
+                      await updateTransaction(transaction.id, { receiptUri: uri });
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceVariant,
+                    borderRadius: radius.lg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingVertical: spacing.sm,
+                  }}
+                >
+                  <Feather name="camera" size={15} color={colors.primary} style={{ marginRight: 6 }} />
+                  <AppText variant="caption" weight="600" color={colors.primary}>
+                    Take Photo
+                  </AppText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={async () => {
+                    const uri = await pickReceiptFromGallery();
+                    if (uri) {
+                      await updateTransaction(transaction.id, { receiptUri: uri });
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceVariant,
+                    borderRadius: radius.lg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingVertical: spacing.sm,
+                  }}
+                >
+                  <Feather name="image" size={15} color={colors.primary} style={{ marginRight: 6 }} />
+                  <AppText variant="caption" weight="600" color={colors.primary}>
+                    Choose Photo
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* Actions */}
         <View style={{ marginTop: spacing.xl }}>
+          <AppButton
+            title="Edit Transaction"
+            variant="primary"
+            iconName="edit-2"
+            onPress={() => setIsEditModalOpen(true)}
+            fullWidth
+            style={{ marginBottom: spacing.sm }}
+          />
           <AppButton
             title="Duplicate Transaction"
             variant="outline"
@@ -225,6 +421,12 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
         </View>
       </ScrollView>
 
+      <EditTransactionModal
+        visible={isEditModalOpen}
+        transaction={transaction}
+        onClose={() => setIsEditModalOpen(false)}
+      />
+
       <ConfirmDialog
         visible={isConfirmDeleteOpen}
         title="Delete Transaction?"
@@ -234,6 +436,87 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
         onConfirm={handleDelete}
         onCancel={() => setIsConfirmDeleteOpen(false)}
       />
+
+      {/* Full-Screen Receipt Viewer Modal */}
+      {transaction.receiptUri && (
+        <Modal
+          visible={isViewingFullReceipt}
+          transparent={false}
+          animationType="fade"
+          onRequestClose={() => setIsViewingFullReceipt(false)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+              }}
+            >
+              <AppText variant="subtitle1" color="#FFFFFF" weight="700">
+                Receipt Preview
+              </AppText>
+              <TouchableOpacity
+                onPress={() => setIsViewingFullReceipt(false)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Feather name="x" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.md }}>
+              <Image
+                source={{ uri: transaction.receiptUri }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+              />
+            </View>
+
+            <View
+              style={{
+                padding: spacing.lg,
+                borderTopWidth: 1,
+                borderTopColor: 'rgba(255,255,255,0.15)',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <AppText variant="caption" color="rgba(255,255,255,0.7)">
+                {transaction.title} • {transaction.date.split('T')[0]}
+              </AppText>
+              <TouchableOpacity
+                onPress={async () => {
+                  setIsViewingFullReceipt(false);
+                  await updateTransaction(transaction.id, { receiptUri: undefined });
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  backgroundColor: 'rgba(255,59,48,0.25)',
+                  borderRadius: radius.md,
+                }}
+              >
+                <Feather name="trash-2" size={15} color="#FF453A" style={{ marginRight: 6 }} />
+                <AppText variant="caption" color="#FF453A" weight="700">
+                  Delete
+                </AppText>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };

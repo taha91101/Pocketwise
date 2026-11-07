@@ -28,6 +28,7 @@ import { STORAGE_KEYS } from '../storage/keys';
 import { FinancialCalculationsService } from '../services/financialCalculations';
 import { InsightsService } from '../services/insightsService';
 import { AppExportData } from '../services/exportImportService';
+import { NotificationService } from '../services/notificationService';
 
 interface AppState {
   // Data
@@ -79,6 +80,19 @@ interface AppState {
   updateRecurringPayment: (id: string, updated: Partial<RecurringPayment>) => Promise<boolean>;
   deleteRecurringPayment: (id: string) => Promise<boolean>;
   toggleRecurringPayment: (id: string) => Promise<boolean>;
+  autoRecordDueRecurringPayments: () => Promise<number>;
+  autoRecordedNotice: {
+    count: number;
+    transactionIds: string[];
+    items: { txId: string; recId: string; previousDueDate: string }[];
+  } | null;
+  clearAutoRecordedNotice: () => void;
+  undoAutoRecordedTransactions: () => Promise<void>;
+
+  // Actions - Categories
+  addCategory: (category: Omit<Category, 'id' | 'isCustom'>) => Promise<Category>;
+  updateCategory: (id: string, updated: Partial<Category>) => Promise<boolean>;
+  deleteCategory: (id: string, fallbackCategoryId: string) => Promise<boolean>;
 
   // Actions - Settings
   updateSettings: (updated: Partial<UserSettings>) => Promise<void>;
@@ -111,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: INITIAL_USER_SETTINGS,
   detectedTransactions: [],
   isNotificationAccessGranted: false,
+  autoRecordedNotice: null,
 
   overview: FinancialCalculationsService.calculateOverview(
     INITIAL_ACCOUNTS,
@@ -199,6 +214,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         overview,
         insights,
       });
+
+      // Catch-up auto-recording for due recurring payments
+      await get().autoRecordDueRecurringPayments();
+
+      // Synchronize system notifications
+      try {
+        await NotificationService.syncSystemNotifications(
+          get().settings.notifications,
+          get().budgets,
+          get().transactions,
+          get().recurringPayments,
+          get().savingsGoals,
+          get().settings.currencySymbol
+        );
+      } catch (notifErr) {
+        console.warn('Notification sync error on hydrate:', notifErr);
+      }
     } catch (e) {
       console.error('Hydration error:', e);
       set({ isHydrated: true });
@@ -239,6 +271,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const budgets = data.budgets || [];
       const savingsGoals = data.savingsGoals || [];
       const recurringPayments = data.recurringPayments || [];
+      const categories = data.categories || get().categories || DEFAULT_CATEGORIES;
       const settings = data.settings || get().settings;
 
       await Promise.all([
@@ -247,6 +280,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.setItem(STORAGE_KEYS.BUDGETS, budgets),
         StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, savingsGoals),
         StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, recurringPayments),
+        StorageService.setItem(STORAGE_KEYS.CATEGORIES, categories),
         StorageService.setItem(STORAGE_KEYS.USER_SETTINGS, settings),
       ]);
 
@@ -265,6 +299,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         budgets,
         savingsGoals,
         recurringPayments,
+        categories,
         settings,
         overview,
         insights,
@@ -824,6 +859,284 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!target) return false;
 
     return await state.updateRecurringPayment(id, { isActive: !target.isActive });
+  },
+
+  clearAutoRecordedNotice: () => {
+    set({ autoRecordedNotice: null });
+  },
+
+  autoRecordDueRecurringPayments: async (): Promise<number> => {
+    const { recurringPayments, transactions, accounts } = get();
+    const now = new Date();
+
+    const dueItems = recurringPayments.filter(
+      (rec) => rec.isActive && rec.autoRecord && new Date(rec.nextDueDate).getTime() <= now.getTime()
+    );
+
+    if (dueItems.length === 0) return 0;
+
+    const newTransactions: Transaction[] = [];
+    const updatedRecurring = [...recurringPayments];
+    const updatedAccounts = [...accounts];
+    const undoLog: { txId: string; recId: string; previousDueDate: string }[] = [];
+
+    for (const rec of dueItems) {
+      const recDue = new Date(rec.nextDueDate);
+
+      // Guard against double-posting: check if an expense with identical title and amount was logged within ±2 days
+      const isAlreadyPosted = transactions.some((tx) => {
+        if (tx.type !== 'expense' || Math.abs(tx.amount - rec.amount) > 0.01) return false;
+        const txDate = new Date(tx.date);
+        const dayDiff = Math.abs((txDate.getTime() - recDue.getTime()) / (1000 * 60 * 60 * 24));
+        return (
+          dayDiff <= 2 &&
+          (tx.title.toLowerCase().includes(rec.title.toLowerCase()) ||
+            rec.title.toLowerCase().includes(tx.title.toLowerCase()))
+        );
+      });
+
+      const previousDueDate = rec.nextDueDate;
+      const nextDue = NotificationService.calculateNextDueDate(rec.nextDueDate, rec.frequency);
+      const recIndex = updatedRecurring.findIndex((r) => r.id === rec.id);
+      if (recIndex !== -1) {
+        updatedRecurring[recIndex] = {
+          ...updatedRecurring[recIndex],
+          nextDueDate: nextDue.toISOString(),
+        };
+      }
+
+      if (isAlreadyPosted) {
+        continue;
+      }
+
+      const txId = `tx-rec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const tx: Transaction = {
+        id: txId,
+        title: rec.title,
+        amount: rec.amount,
+        type: 'expense',
+        categoryId: rec.categoryId,
+        categoryName: rec.categoryName,
+        categoryIcon: rec.categoryIcon || 'repeat',
+        categoryColor: rec.categoryColor || '#1A73E8',
+        date: previousDueDate,
+        time: '09:00',
+        accountId: rec.accountId,
+        accountName: rec.accountName,
+        paymentMethod: 'Auto-Debit',
+        source: 'recurring',
+        notes: `Auto-recorded recurring commitment (${rec.frequency})`,
+        createdAt: new Date().toISOString(),
+      };
+
+      newTransactions.push(tx);
+      undoLog.push({ txId, recId: rec.id, previousDueDate });
+
+      // Debit account balance
+      const accIndex = updatedAccounts.findIndex((a) => a.id === rec.accountId);
+      if (accIndex !== -1) {
+        updatedAccounts[accIndex] = {
+          ...updatedAccounts[accIndex],
+          balance: updatedAccounts[accIndex].balance - rec.amount,
+        };
+      }
+    }
+
+    if (newTransactions.length > 0) {
+      const finalTransactions = [...newTransactions, ...transactions];
+      await StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, finalTransactions);
+      await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
+      await StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, updatedRecurring);
+
+      const overview = FinancialCalculationsService.calculateOverview(
+        updatedAccounts,
+        finalTransactions,
+        get().savingsGoals
+      );
+      const insights = InsightsService.generateInsights(
+        finalTransactions,
+        updatedAccounts,
+        get().budgets,
+        get().savingsGoals,
+        get().settings.currencySymbol
+      );
+
+      set({
+        transactions: finalTransactions,
+        accounts: updatedAccounts,
+        recurringPayments: updatedRecurring,
+        overview,
+        insights,
+        autoRecordedNotice: {
+          count: newTransactions.length,
+          transactionIds: newTransactions.map((t) => t.id),
+          items: undoLog,
+        },
+      });
+    } else {
+      await StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, updatedRecurring);
+      set({ recurringPayments: updatedRecurring });
+    }
+
+    return newTransactions.length;
+  },
+
+  undoAutoRecordedTransactions: async (): Promise<void> => {
+    const notice = get().autoRecordedNotice;
+    if (!notice || notice.items.length === 0) return;
+
+    const { transactions, accounts, recurringPayments } = get();
+    const txIdsToRemove = new Set(notice.items.map((i) => i.txId));
+
+    // 1. Remove transactions and calculate refunded amounts per account
+    const refundMap = new Map<string, number>();
+    const keptTransactions: Transaction[] = [];
+
+    for (const tx of transactions) {
+      if (txIdsToRemove.has(tx.id)) {
+        const currentRefund = refundMap.get(tx.accountId) || 0;
+        refundMap.set(tx.accountId, currentRefund + tx.amount);
+      } else {
+        keptTransactions.push(tx);
+      }
+    }
+
+    // 2. Revert account balances
+    const updatedAccounts = accounts.map((acc) => {
+      const refund = refundMap.get(acc.id);
+      if (refund) {
+        return { ...acc, balance: acc.balance + refund };
+      }
+      return acc;
+    });
+
+    // 3. Revert recurring payment nextDueDate
+    const dueDateMap = new Map(notice.items.map((i) => [i.recId, i.previousDueDate]));
+    const updatedRecurring = recurringPayments.map((rec) => {
+      const prevDate = dueDateMap.get(rec.id);
+      if (prevDate) {
+        return { ...rec, nextDueDate: prevDate };
+      }
+      return rec;
+    });
+
+    await StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, keptTransactions);
+    await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
+    await StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, updatedRecurring);
+
+    const overview = FinancialCalculationsService.calculateOverview(
+      updatedAccounts,
+      keptTransactions,
+      get().savingsGoals
+    );
+    const insights = InsightsService.generateInsights(
+      keptTransactions,
+      updatedAccounts,
+      get().budgets,
+      get().savingsGoals,
+      get().settings.currencySymbol
+    );
+
+    set({
+      transactions: keptTransactions,
+      accounts: updatedAccounts,
+      recurringPayments: updatedRecurring,
+      overview,
+      insights,
+      autoRecordedNotice: null,
+    });
+  },
+
+  addCategory: async (catData) => {
+    const state = get();
+    const newCategory: Category = {
+      ...catData,
+      id: `cat-custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      isCustom: true,
+    };
+    const updatedCategories = [...state.categories, newCategory];
+    await StorageService.setItem(STORAGE_KEYS.CATEGORIES, updatedCategories);
+    set({ categories: updatedCategories });
+    return newCategory;
+  },
+
+  updateCategory: async (id, updated) => {
+    const state = get();
+    const existing = state.categories.find((c) => c.id === id);
+    if (!existing) return false;
+
+    const mergedCategory: Category = { ...existing, ...updated };
+    const updatedCategories = state.categories.map((c) => (c.id === id ? mergedCategory : c));
+
+    // Cascade category updates to existing transactions
+    const updatedTransactions = state.transactions.map((tx) => {
+      if (tx.categoryId === id) {
+        return {
+          ...tx,
+          categoryName: mergedCategory.name,
+          categoryIcon: mergedCategory.icon,
+          categoryColor: mergedCategory.color,
+        };
+      }
+      return tx;
+    });
+
+    await Promise.all([
+      StorageService.setItem(STORAGE_KEYS.CATEGORIES, updatedCategories),
+      StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, updatedTransactions),
+    ]);
+
+    set({ categories: updatedCategories, transactions: updatedTransactions });
+    return true;
+  },
+
+  deleteCategory: async (id, fallbackCategoryId) => {
+    const state = get();
+    const targetCat = state.categories.find((c) => c.id === id);
+    const fallbackCat = state.categories.find((c) => c.id === fallbackCategoryId);
+
+    if (!targetCat || !fallbackCat || targetCat.id === fallbackCat.id) return false;
+
+    const updatedCategories = state.categories.filter((c) => c.id !== id);
+
+    // Reassign transactions
+    const updatedTransactions = state.transactions.map((tx) => {
+      if (tx.categoryId === id) {
+        return {
+          ...tx,
+          categoryId: fallbackCat.id,
+          categoryName: fallbackCat.name,
+          categoryIcon: fallbackCat.icon,
+          categoryColor: fallbackCat.color,
+        };
+      }
+      return tx;
+    });
+
+    // Reassign budgets
+    const updatedBudgets = state.budgets.map((bgt) => {
+      if (bgt.categoryId === id) {
+        return {
+          ...bgt,
+          categoryId: fallbackCat.id,
+          name: `${fallbackCat.name} Budget`,
+        };
+      }
+      return bgt;
+    });
+
+    await Promise.all([
+      StorageService.setItem(STORAGE_KEYS.CATEGORIES, updatedCategories),
+      StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, updatedTransactions),
+      StorageService.setItem(STORAGE_KEYS.BUDGETS, updatedBudgets),
+    ]);
+
+    set({
+      categories: updatedCategories,
+      transactions: updatedTransactions,
+      budgets: updatedBudgets,
+    });
+    return true;
   },
 
   updateSettings: async (updated) => {

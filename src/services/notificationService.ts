@@ -1,5 +1,25 @@
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { Budget, NotificationSettings, RecurringPayment, SavingsGoal, Transaction } from '../types';
 import { FinancialCalculationsService } from './financialCalculations';
+
+export const POCKETWISE_NOTIFICATION_CHANNEL_ID = 'pocketwise_reminders';
+
+// Setup foreground notification presentation handler
+if (Platform.OS !== 'web') {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch (e) {
+    // Graceful fallback in environments without native notification handlers
+  }
+}
 
 export interface AppNotification {
   id: string;
@@ -11,6 +31,173 @@ export interface AppNotification {
 }
 
 export class NotificationService {
+  /**
+   * Initializes notification channels required on Android 8+
+   */
+  public static async initNotificationChannels(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    try {
+      await Notifications.setNotificationChannelAsync(POCKETWISE_NOTIFICATION_CHANNEL_ID, {
+        name: 'PocketWise Reminders & Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1A73E8',
+      });
+    } catch (error) {
+      console.warn('Failed to configure Android notification channel:', error);
+    }
+  }
+
+  /**
+   * Requests runtime notification permissions on Android 13+ and iOS.
+   */
+  public static async requestPermissions(): Promise<boolean> {
+    if (Platform.OS === 'web') return false;
+    try {
+      const existing = await Notifications.getPermissionsAsync();
+      if (existing.granted || existing.status === 'granted') {
+        return true;
+      }
+      const response = await Notifications.requestPermissionsAsync();
+      return response.granted || response.status === 'granted';
+    } catch (error) {
+      console.warn('Failed to request notification permissions:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Schedules or reschedules native local notifications for upcoming recurring payments,
+   * budget threshold warnings, and goal milestones based on user settings.
+   */
+  public static async syncSystemNotifications(
+    settings: NotificationSettings,
+    budgets: Budget[],
+    transactions: Transaction[],
+    recurringPayments: RecurringPayment[],
+    savingsGoals: SavingsGoal[],
+    currencySymbol: string = '₹'
+  ): Promise<number> {
+    if (Platform.OS === 'web') return 0;
+    try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) return 0;
+
+      await this.initNotificationChannels();
+
+      // Cancel previous scheduled reminders to avoid duplication
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      let scheduledCount = 0;
+      const now = new Date();
+
+      // 1. Upcoming Recurring Payments
+      if (settings.recurringPayments) {
+        for (const rec of recurringPayments) {
+          if (!rec.isActive) continue;
+
+          const dueDate = new Date(rec.nextDueDate);
+          const reminderDays = rec.reminderDaysBefore || 1;
+          const triggerDate = new Date(dueDate.getTime() - reminderDays * 24 * 60 * 60 * 1000);
+          triggerDate.setHours(9, 0, 0, 0); // 9:00 AM
+
+          if (triggerDate.getTime() > now.getTime()) {
+            const body = settings.hideAmountsInNotifications
+              ? `${rec.title} is due soon.`
+              : `${rec.title} of ${currencySymbol}${rec.amount.toLocaleString()} is due soon.`;
+
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `📅 Bill Reminder: ${rec.title}`,
+                body,
+                data: { type: 'recurring', id: rec.id },
+                sound: true,
+              },
+              trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: triggerDate,
+                channelId: POCKETWISE_NOTIFICATION_CHANNEL_ID,
+              },
+            });
+            scheduledCount++;
+          }
+        }
+      }
+
+      // 2. Budget Threshold Warnings
+      if (settings.budgetWarnings) {
+        for (const bgt of budgets) {
+          const perf = FinancialCalculationsService.calculateBudgetPerformance(bgt, transactions);
+          if (perf.status === 'exceeded') {
+            const body = settings.hideAmountsInNotifications
+              ? `You have exceeded your ${bgt.name} budget limit.`
+              : `You've spent ${currencySymbol}${perf.spent.toLocaleString()} (${perf.percentageUsed}% of ${bgt.name} limit).`;
+
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `⚠️ Budget Exceeded: ${bgt.name}`,
+                body,
+                data: { type: 'budget', id: bgt.id },
+                sound: true,
+              },
+              trigger: {
+                channelId: POCKETWISE_NOTIFICATION_CHANNEL_ID,
+              },
+            });
+            scheduledCount++;
+          } else if (perf.status === 'warning') {
+            const body = settings.hideAmountsInNotifications
+              ? `You've used ${perf.percentageUsed}% of your ${bgt.name} budget.`
+              : `You've used ${perf.percentageUsed}% of ${bgt.name}. ${currencySymbol}${perf.remaining.toLocaleString()} left.`;
+
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `🔔 Budget Alert: ${bgt.name}`,
+                body,
+                data: { type: 'budget', id: bgt.id },
+                sound: true,
+              },
+              trigger: {
+                channelId: POCKETWISE_NOTIFICATION_CHANNEL_ID,
+              },
+            });
+            scheduledCount++;
+          }
+        }
+      }
+
+      // 3. Goal Milestones
+      if (settings.goalMilestones) {
+        for (const goal of savingsGoals) {
+          const metrics = FinancialCalculationsService.calculateGoalMetrics(goal);
+          if (metrics.isCompleted) {
+            const body = settings.hideAmountsInNotifications
+              ? `You've achieved your savings target for ${goal.name}!`
+              : `You reached your full target of ${currencySymbol}${goal.targetAmount.toLocaleString()} for ${goal.name}!`;
+
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `🎉 Goal Completed: ${goal.name}!`,
+                body,
+                data: { type: 'goal', id: goal.id },
+                sound: true,
+              },
+              trigger: {
+                channelId: POCKETWISE_NOTIFICATION_CHANNEL_ID,
+              },
+            });
+            scheduledCount++;
+          }
+        }
+      }
+
+      return scheduledCount;
+    } catch (error) {
+      console.warn('Failed to sync system notifications:', error);
+      return 0;
+    }
+  }
+
   /**
    * Generates active notifications based on current financial metrics and user preferences
    */

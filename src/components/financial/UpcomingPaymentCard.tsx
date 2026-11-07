@@ -74,6 +74,7 @@ export const UpcomingPaymentCard: React.FC<UpcomingPaymentCardProps> = ({
             weight={dueInfo.urgent ? '700' : '400'}
           >
             {dueInfo.text} • {payment.frequency}
+            {payment.autoRecord ? ' • ⚡ Auto' : ''}
           </AppText>
         </View>
       </View>

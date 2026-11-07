@@ -19,6 +19,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { CURRENCY_OPTIONS } from '../../constants/paymentMethods';
 import { ExportImportService } from '../../services/exportImportService';
 import { Feather } from '@expo/vector-icons';
+import { SetPinModal, PinModalMode } from '../../components/modals/SetPinModal';
+import { SecurityService } from '../../services/securityService';
+import { ManageCategoriesModal } from '../../components/modals/ManageCategoriesModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, spacing, radius, shadows, isDark } = useTheme();
@@ -46,6 +49,27 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   // Currency modal
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
+
+  // Categories modal
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+
+  // App Lock & Security
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState<PinModalMode>('setup');
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const { hasHardware, isEnrolled } = await SecurityService.isBiometricAvailable();
+      if (isMounted) {
+        setIsBiometricSupported(hasHardware && isEnrolled);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleExportJSON = () => {
     const data = {
@@ -87,6 +111,49 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     } else {
       setImportError('Failed to import backup data');
     }
+  };
+
+  const handlePinLockPress = () => {
+    if (!settings.securityEnabled) {
+      setPinModalMode('setup');
+      setIsPinModalOpen(true);
+    } else {
+      Alert.alert(
+        'PIN Lock Settings',
+        'Your application is protected with a secure PIN.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Change PIN',
+            onPress: () => {
+              setPinModalMode('change');
+              setIsPinModalOpen(true);
+            },
+          },
+          {
+            text: 'Disable PIN Lock',
+            style: 'destructive',
+            onPress: () => {
+              setPinModalMode('disable');
+              setIsPinModalOpen(true);
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const handleTimeoutPress = () => {
+    Alert.alert(
+      'Auto-Lock Timeout',
+      'Select how quickly PocketWise locks after moving to background:',
+      [
+        { text: 'Immediately', onPress: () => updateSettings({ lockTimeout: 'immediate' }) },
+        { text: 'After 1 Minute', onPress: () => updateSettings({ lockTimeout: '1min' }) },
+        { text: 'After 5 Minutes', onPress: () => updateSettings({ lockTimeout: '5min' }) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   return (
@@ -197,9 +264,9 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
 
-        {/* Section: Currency */}
+        {/* Section: Categories & Currency */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
-          CURRENCY & REGION
+          CATEGORIES & REGION
         </AppText>
         <View
           style={[
@@ -212,6 +279,27 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             },
           ]}
         >
+          <TouchableOpacity
+            onPress={() => setIsCategoriesModalOpen(true)}
+            style={[
+              styles.groupRow,
+              { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Feather name="grid" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View>
+                <AppText variant="body2" weight="600">
+                  Manage Categories
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  Create, customize icons & color badges
+                </AppText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => setIsCurrencyModalOpen(true)}
             style={[styles.groupRow, { padding: spacing.md }]}
@@ -330,8 +418,120 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 notifications: { ...settings.notifications, goalMilestones: val },
               })
             }
+          />
+          <NotificationSwitchRow
+            label="Hide Amounts in Notifications"
+            icon="eye-off"
+            value={settings.notifications.hideAmountsInNotifications ?? true}
+            onValueChange={(val) =>
+              updateSettings({
+                notifications: { ...settings.notifications, hideAmountsInNotifications: val },
+              })
+            }
             isLast
           />
+        </View>
+
+        {/* Section: App Security & Lock */}
+        <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
+          APP SECURITY & PRIVACY
+        </AppText>
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handlePinLockPress}
+            style={[
+              styles.groupRow,
+              {
+                padding: spacing.md,
+                borderBottomWidth: settings.securityEnabled ? 1 : 0,
+                borderBottomColor: colors.borderLight,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="shield" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Passcode / PIN Lock
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  {settings.securityEnabled ? 'Active (Salted SHA-256)' : 'Protect financial records with a 4-digit PIN'}
+                </AppText>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppText
+                variant="subtitle2"
+                color={settings.securityEnabled ? colors.success : colors.textMuted}
+                weight="700"
+              >
+                {settings.securityEnabled ? 'ON' : 'OFF'}
+              </AppText>
+              <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+
+          {settings.securityEnabled && isBiometricSupported && (
+            <View
+              style={[
+                styles.groupRow,
+                { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Feather name="command" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <AppText variant="body2" weight="600">
+                    Biometric Unlock
+                  </AppText>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                    Fingerprint or Face ID
+                  </AppText>
+                </View>
+              </View>
+              <Switch
+                value={settings.biometricEnabled || false}
+                onValueChange={(val) => updateSettings({ biometricEnabled: val })}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          )}
+
+          {settings.securityEnabled && (
+            <TouchableOpacity
+              onPress={handleTimeoutPress}
+              style={[styles.groupRow, { padding: spacing.md }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Feather name="clock" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <AppText variant="body2" weight="600">
+                    Auto-Lock Timeout
+                  </AppText>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                    When app goes to background
+                  </AppText>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <AppText variant="subtitle2" color={colors.primary} weight="700">
+                  {settings.lockTimeout === '5min' ? '5 Minutes' : settings.lockTimeout === '1min' ? '1 Minute' : 'Immediately'}
+                </AppText>
+                <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Section: Walkthrough & Help */}
@@ -534,6 +734,12 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
               </TouchableOpacity>
             </View>
 
+            {exportTitle.includes('CSV') && (
+              <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: spacing.xs, marginBottom: spacing.sm }}>
+                Note: Local receipt and bill photo attachments are on-device only and excluded from CSV export.
+              </AppText>
+            )}
+
             <ScrollView style={[styles.exportBox, { backgroundColor: colors.surfaceVariant, borderRadius: radius.md, padding: spacing.sm, maxHeight: height * 0.5 }]}>
               <AppText variant="caption" style={{ fontFamily: 'monospace' }}>
                 {exportContent}
@@ -631,6 +837,19 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           setIsResetConfirmOpen(false);
         }}
         onCancel={() => setIsResetConfirmOpen(false)}
+      />
+
+      {/* Set / Change / Disable PIN Modal */}
+      <SetPinModal
+        visible={isPinModalOpen}
+        mode={pinModalMode}
+        onClose={() => setIsPinModalOpen(false)}
+      />
+
+      {/* Manage Categories Modal */}
+      <ManageCategoriesModal
+        visible={isCategoriesModalOpen}
+        onClose={() => setIsCategoriesModalOpen(false)}
       />
     </SafeAreaView>
   );

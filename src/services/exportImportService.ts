@@ -1,4 +1,4 @@
-import { Account, Budget, RecurringPayment, SavingsGoal, Transaction, UserSettings } from '../types';
+import { Account, Budget, Category, RecurringPayment, SavingsGoal, Transaction, UserSettings } from '../types';
 
 export interface AppExportData {
   version: string;
@@ -8,6 +8,7 @@ export interface AppExportData {
   budgets: Budget[];
   savingsGoals: SavingsGoal[];
   recurringPayments: RecurringPayment[];
+  categories?: Category[];
   settings?: UserSettings;
 }
 
@@ -79,6 +80,7 @@ export class ExportImportService {
         budgets: Array.isArray(parsed.budgets) ? parsed.budgets : [],
         savingsGoals: Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : [],
         recurringPayments: Array.isArray(parsed.recurringPayments) ? parsed.recurringPayments : [],
+        categories: Array.isArray(parsed.categories) ? parsed.categories : undefined,
         settings: parsed.settings,
       };
 

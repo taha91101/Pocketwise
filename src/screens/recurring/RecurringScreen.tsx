@@ -23,6 +23,9 @@ export const RecurringScreen: React.FC = () => {
   const toggleRecurringPayment = useAppStore((state) => state.toggleRecurringPayment);
   const deleteRecurringPayment = useAppStore((state) => state.deleteRecurringPayment);
   const addTransaction = useAppStore((state) => state.addTransaction);
+  const autoRecordedNotice = useAppStore((state) => state.autoRecordedNotice);
+  const clearAutoRecordedNotice = useAppStore((state) => state.clearAutoRecordedNotice);
+  const undoAutoRecordedTransactions = useAppStore((state) => state.undoAutoRecordedTransactions);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -82,6 +85,61 @@ export const RecurringScreen: React.FC = () => {
           <Feather name="plus" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Auto-Recorded Catch-up Notice Toast */}
+      {autoRecordedNotice && (
+        <View
+          style={{
+            marginHorizontal: spacing.lg,
+            marginBottom: spacing.sm,
+            padding: spacing.md,
+            backgroundColor: colors.primaryLight,
+            borderColor: colors.primary,
+            borderWidth: 1,
+            borderRadius: radius.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Feather name="zap" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <AppText variant="subtitle2" weight="700" color={colors.primary}>
+                Auto-Posted Recurring Bills
+              </AppText>
+            </View>
+            <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
+              {autoRecordedNotice.count} due bill{autoRecordedNotice.count > 1 ? 's were' : ' was'} recorded and debited automatically.
+            </AppText>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={async () => {
+                await undoAutoRecordedTransactions();
+              }}
+              style={{
+                backgroundColor: colors.primary,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: radius.md,
+              }}
+            >
+              <AppText variant="caption" weight="700" color="#FFFFFF">
+                Undo
+              </AppText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={clearAutoRecordedNotice}
+              style={{ padding: 4 }}
+            >
+              <Feather name="x" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <FlatList
         data={recurringPayments}

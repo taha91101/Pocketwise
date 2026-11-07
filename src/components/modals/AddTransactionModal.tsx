@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,6 +19,8 @@ import { CategoryIcon } from '../common/CategoryIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { TransactionType } from '../../types';
 import { Feather } from '@expo/vector-icons';
+import { AddCategoryModal } from './AddCategoryModal';
+import { pickReceiptFromGallery, captureReceiptWithCamera } from '../../services/receiptService';
 
 export interface AddTransactionModalProps {
   visible: boolean;
@@ -48,9 +51,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
   const [selectedGoalId, setSelectedGoalId] = useState('');
   const [notes, setNotes] = useState('');
+  const [receiptUri, setReceiptUri] = useState<string | undefined>(undefined);
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [error, setError] = useState('');
+  const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
 
   // Default selection on open
   React.useEffect(() => {
@@ -58,6 +63,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setType(initialType);
       setTitle('');
       setAmount('');
+      setNotes('');
+      setReceiptUri(undefined);
       setError('');
       setIsRecurring(false);
 
@@ -109,6 +116,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         goalId: type === 'saving' ? selectedGoal?.id : undefined,
         goalName: type === 'saving' ? selectedGoal?.name : undefined,
         notes: notes.trim(),
+        receiptUri: receiptUri || undefined,
         isRecurring,
         recurringFrequency: isRecurring ? frequency : undefined,
       });
@@ -244,6 +252,25 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     </TouchableOpacity>
                   );
                 })}
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setIsAddCategoryModalOpen(true)}
+                  style={[
+                    styles.catChip,
+                    {
+                      backgroundColor: colors.surfaceVariant,
+                      borderColor: colors.border,
+                      borderRadius: radius.lg,
+                      borderStyle: 'dashed',
+                    },
+                  ]}
+                >
+                  <Feather name="plus" size={14} color={colors.primary} />
+                  <AppText variant="caption" weight="700" color={colors.primary} style={{ marginLeft: 6 }}>
+                    New Category
+                  </AppText>
+                </TouchableOpacity>
               </ScrollView>
 
               {/* Account Picker */}
@@ -373,6 +400,102 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 style={{ marginTop: spacing.md }}
               />
 
+              {/* Receipt / Attachment Picker */}
+              <View style={{ marginTop: spacing.md }}>
+                <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginBottom: spacing.xs }}>
+                  Receipt / Bill Attachment
+                </AppText>
+                {receiptUri ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: colors.surfaceVariant,
+                      borderRadius: radius.lg,
+                      padding: spacing.sm,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Image
+                      source={{ uri: receiptUri }}
+                      style={{ width: 54, height: 54, borderRadius: radius.md, backgroundColor: colors.border }}
+                    />
+                    <View style={{ flex: 1, marginLeft: spacing.md }}>
+                      <AppText variant="body2" weight="600" numberOfLines={1}>
+                        Receipt attached
+                      </AppText>
+                      <AppText variant="caption" color={colors.textMuted}>
+                        Saved to app storage
+                      </AppText>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setReceiptUri(undefined)}
+                      style={{
+                        padding: spacing.xs,
+                        backgroundColor: `${colors.error}15`,
+                        borderRadius: radius.full,
+                        marginRight: spacing.xs,
+                      }}
+                    >
+                      <Feather name="trash-2" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        const uri = await captureReceiptWithCamera();
+                        if (uri) setReceiptUri(uri);
+                      }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: colors.surfaceVariant,
+                        borderRadius: radius.lg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: spacing.sm,
+                        paddingHorizontal: spacing.md,
+                      }}
+                    >
+                      <Feather name="camera" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                      <AppText variant="caption" weight="600" color={colors.primary}>
+                        Take Photo
+                      </AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        const uri = await pickReceiptFromGallery();
+                        if (uri) setReceiptUri(uri);
+                      }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: colors.surfaceVariant,
+                        borderRadius: radius.lg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: spacing.sm,
+                        paddingHorizontal: spacing.md,
+                      }}
+                    >
+                      <Feather name="image" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                      <AppText variant="caption" weight="600" color={colors.primary}>
+                        Choose Photo
+                      </AppText>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
               {/* Recurring Toggle */}
               <TouchableOpacity
                 activeOpacity={0.7}
@@ -425,6 +548,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      <AddCategoryModal
+        visible={isAddCategoryModalOpen}
+        defaultType={type === 'income' ? 'income' : 'expense'}
+        onClose={() => setIsAddCategoryModalOpen(false)}
+        onSuccess={(newCat) => setSelectedCatId(newCat.id)}
+      />
     </Modal>
   );
 };

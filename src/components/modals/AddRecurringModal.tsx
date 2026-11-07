@@ -38,6 +38,7 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ visible, o
   const [categoryId, setCategoryId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [reminderDays, setReminderDays] = useState('2');
+  const [autoRecord, setAutoRecord] = useState(false);
   const [error, setError] = useState('');
 
   const expenseCategories = categories.filter((c) => c.type === 'expense' || c.type === 'both');
@@ -49,6 +50,7 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ visible, o
       setError('');
       setFrequency('monthly');
       setReminderDays('2');
+      setAutoRecord(false);
       if (expenseCategories.length > 0) setCategoryId(expenseCategories[0].id);
       if (accounts.length > 0) setAccountId(accounts[0].id);
     }
@@ -82,6 +84,7 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ visible, o
       nextDueDate: nextDate.toISOString(),
       isActive: true,
       reminderDaysBefore: parseInt(reminderDays, 10) || 2,
+      autoRecord,
     });
 
     onClose();
@@ -245,6 +248,38 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ visible, o
                   );
                 })}
               </ScrollView>
+
+              {/* Auto-record on due date */}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setAutoRecord(!autoRecord)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: colors.surfaceVariant,
+                  borderRadius: radius.lg,
+                  padding: spacing.md,
+                  marginTop: spacing.md,
+                }}
+              >
+                <View style={{ flex: 1, marginRight: spacing.sm }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Feather name="zap" size={16} color={autoRecord ? colors.primary : colors.textSecondary} style={{ marginRight: 6 }} />
+                    <AppText variant="body2" weight="600">
+                      Auto-record on due date
+                    </AppText>
+                  </View>
+                  <AppText variant="caption" color={colors.textMuted} style={{ marginTop: 2 }}>
+                    Automatically debits account and logs ledger entry
+                  </AppText>
+                </View>
+                <Feather
+                  name={autoRecord ? 'check-square' : 'square'}
+                  size={20}
+                  color={autoRecord ? colors.primary : colors.textMuted}
+                />
+              </TouchableOpacity>
 
               {error ? (
                 <AppText variant="caption" color={colors.error} style={{ marginTop: spacing.xs }}>

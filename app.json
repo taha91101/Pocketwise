@@ -32,6 +32,21 @@
           "resizeMode": "cover",
           "backgroundColor": "#FFFFFF"
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you attach receipts to transactions.",
+          "cameraPermission": "The app accesses your camera to let you take photos of receipts."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1A73E8"
+        }
       ]
     ],
     "extra": {

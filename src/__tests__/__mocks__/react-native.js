@@ -3,6 +3,13 @@ module.exports = {
     OS: 'android',
     select: (obj) => obj.android || obj.default,
   },
+  Alert: {
+    alert: jest.fn(),
+  },
+  AppState: {
+    currentState: 'active',
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
   NativeModules: {
     UPITransactionDetectionModule: {
       isNotificationAccessGranted: jest.fn(() => Promise.resolve(true)),

@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { Transaction } from '../../types';
 import { AppText } from '../common/AppText';
@@ -88,6 +89,14 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, o
           <AppText variant="subtitle2" numberOfLines={1} style={{ flexShrink: 1 }}>
             {transaction.title}
           </AppText>
+          {transaction.receiptUri ? (
+            <Feather
+              name="paperclip"
+              size={13}
+              color={colors.primary}
+              style={{ marginLeft: 6 }}
+            />
+          ) : null}
           {transaction.isAutomaticallyDetected && (
             <View
               style={{

@@ -24,7 +24,7 @@ export interface Transaction {
   recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   merchant?: string;
   paymentProvider?: string;
-  source?: 'manual' | 'notification' | 'import';
+  source?: 'manual' | 'notification' | 'import' | 'recurring';
   sourcePackage?: string;
   upiReference?: string;
   isAutomaticallyDetected?: boolean;
@@ -106,12 +106,15 @@ export interface RecurringPayment {
   amount: number;
   categoryId: string;
   categoryName: string;
+  categoryIcon?: string;
+  categoryColor?: string;
   accountId: string;
   accountName: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
   nextDueDate: string;
   isActive: boolean;
   reminderDaysBefore: number;
+  autoRecord?: boolean;
   createdAt: string;
 }
 
@@ -136,6 +139,7 @@ export interface NotificationSettings {
   savingsReminders: boolean;
   monthlySummary: boolean;
   goalMilestones: boolean;
+  hideAmountsInNotifications?: boolean;
   automaticExpenseDetection?: boolean;
   autoConfirmHighConfidence?: boolean;
   detectRefunds?: boolean;
@@ -152,6 +156,8 @@ export interface UserSettings {
   themeMode: 'light' | 'dark' | 'system';
   notifications: NotificationSettings;
   securityEnabled: boolean;
+  biometricEnabled?: boolean;
+  lockTimeout?: 'immediate' | '1min' | '5min';
   pinCode?: string;
   hasCompletedOnboarding: boolean;
   hasCompletedWalkthrough: boolean;
