@@ -7,5 +7,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '^react-native$': '<rootDir>/src/__tests__/__mocks__/react-native.js',
+    '^@react-native-async-storage/async-storage$':
+      '<rootDir>/node_modules/@react-native-async-storage/async-storage/jest/async-storage-mock.js',
   },
 };

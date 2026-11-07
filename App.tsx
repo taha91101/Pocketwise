@@ -31,7 +31,7 @@ function MainApp() {
   if (!isHydrated) {
     return (
       <View style={StyleSheet.absoluteFill}>
-        <StatusBar style="dark" translucent />
+        <StatusBar style="dark" />
         <Image
           source={require('./assets/splash.png')}
           style={StyleSheet.absoluteFill}

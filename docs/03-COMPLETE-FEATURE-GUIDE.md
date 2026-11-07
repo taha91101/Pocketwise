@@ -2,6 +2,15 @@
 
 This document provides exhaustive, code-level documentation for every feature implemented in the PocketWise codebase. Every feature is traced from UI entry points through Zustand store actions, service logic, persistence models, and native Android hooks.
 
+> [!NOTE]
+> **Canonical Feature Index (19 Features: 16 Complete, 3 Partial)**  
+> PocketWise features are grouped into 15 functional chapters in this guide, corresponding to the 19 canonical application capabilities detailed in [FEATURE-TRACEABILITY-MATRIX.md](file:///D:/Pocketwise/docs/FEATURE-TRACEABILITY-MATRIX.md):
+> - **Features 1–11**: Chapters 1–11
+> - **Features 12 & 13**: Chapter 12 (Multi-Account Management & Internal Transfers)
+> - **Features 14 & 15**: Chapters 13 & 14 (AI Insights & Data Sovereignty)
+> - **Features 16 & 17**: Chapter 15 (Theme/Currency Preferences & Local PIN Security)
+> - **Features 18 & 19**: Partially implemented capabilities (Receipt Attachments & Custom Categories, detailed in [13-IMPLEMENTATION-AUDIT.md](file:///D:/Pocketwise/docs/13-IMPLEMENTATION-AUDIT.md))
+
 ---
 
 ## Feature 1: First-Time User Onboarding & Financial Personalization

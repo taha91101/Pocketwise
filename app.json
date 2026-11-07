@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#FFFFFF"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -30,7 +25,14 @@
     "plugins": [
       "expo-font",
       "./plugins/withUpiDetector",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ],
     "extra": {
       "eas": {

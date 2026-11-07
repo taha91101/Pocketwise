@@ -88,4 +88,59 @@ export class NotificationService {
 
     return list;
   }
+
+  /**
+   * Calculates the next due date for a recurring commitment given its frequency,
+   * accounting for month-end clamps (e.g., Jan 31 -> Feb 28/29) and leap years.
+   */
+  public static calculateNextDueDate(
+    currentDueDate: string | Date,
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  ): Date {
+    const date = new Date(currentDueDate);
+    const targetDay = date.getDate();
+
+    switch (frequency) {
+      case 'daily': {
+        const next = new Date(date);
+        next.setDate(next.getDate() + 1);
+        return next;
+      }
+      case 'weekly': {
+        const next = new Date(date);
+        next.setDate(next.getDate() + 7);
+        return next;
+      }
+      case 'monthly': {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const nextMonth = month + 1;
+        const targetYear = year + Math.floor(nextMonth / 12);
+        const normalizedMonth = nextMonth % 12;
+
+        const daysInTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+        const clampedDay = Math.min(targetDay, daysInTargetMonth);
+
+        const next = new Date(date);
+        next.setDate(1);
+        next.setFullYear(targetYear);
+        next.setMonth(normalizedMonth);
+        next.setDate(clampedDay);
+        return next;
+      }
+      case 'yearly': {
+        const targetYear = date.getFullYear() + 1;
+        const month = date.getMonth();
+        const daysInTargetMonth = new Date(targetYear, month + 1, 0).getDate();
+        const clampedDay = Math.min(targetDay, daysInTargetMonth);
+
+        const next = new Date(date);
+        next.setDate(1);
+        next.setFullYear(targetYear);
+        next.setMonth(month);
+        next.setDate(clampedDay);
+        return next;
+      }
+    }
+  }
 }

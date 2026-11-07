@@ -57,34 +57,22 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 ---
 
-### 2.3 Unused Components & Dead Code (2 Components Discovered)
+### 2.3 Unused Components & Dead Code (Remediated in v1.0.1)
 
-During the verification audit, automated usage scans across all TypeScript and TSX files revealed two components defined in `src/components/common/` that have **zero imports and zero usages** across the entire application:
-
-1. **`AppHeader.tsx` ([src/components/common/AppHeader.tsx](file:///D:/Pocketwise/src/components/common/AppHeader.tsx))**:
-   - A standardized header component providing back buttons, titles, subtitles, and right action icons.
-   - *Audit Finding*: Every screen in `src/screens/` implements its own custom inline header layout with `View`, `AppText`, and `TouchableOpacity`. `AppHeader` is never imported.
-2. **`AppCard.tsx` ([src/components/common/AppCard.tsx](file:///D:/Pocketwise/src/components/common/AppCard.tsx))**:
-   - An elevated card wrapper component applying theme background, borders, and shadows.
-   - *Audit Finding*: Financial widgets and screens apply card styling directly using `View` with `styles.card` and `useTheme()`. `AppCard` is never imported.
+During the Phase 0 audit, automated usage scans across all TypeScript and TSX files revealed two components defined in `src/components/common/` that had zero imports and zero usages across the entire application:
+1. `AppHeader.tsx`: Deleted in Phase 0.
+2. `AppCard.tsx`: Deleted in Phase 0.
+*Status*: **Fully pruned. No dead code components remain.**
 
 ---
 
-### 2.4 Technical Debt & Codebase Discrepancies (2 Items)
+### 2.4 Technical Debt & Codebase Discrepancies (Remediated in v1.0.1)
 
 #### 1. TypeScript Compilation Error in `App.tsx`
-- **Location**: [App.tsx line 34](file:///D:/Pocketwise/App.tsx#L34):
-  ```tsx
-  <StatusBar style="dark" translucent />
-  ```
-- **Error**: `Property 'translucent' does not exist on type 'IntrinsicAttributes & StatusBarProps'.`
-- **Impact**: Fails strict `tsc --noEmit` checks, although it compiles cleanly in Metro bundler.
-- **Remediation**: Remove the obsolete `translucent` prop from `<StatusBar style="dark" />`.
+- **Resolution**: Removed the obsolete `translucent` prop from `<StatusBar style="dark" />` in [App.tsx line 34](file:///D:/Pocketwise/App.tsx#L34). Strict `tsc --noEmit` and `npm run typecheck` now pass with zero errors.
 
 #### 2. Architectural Documentation Mismatch in `AGENTS.md`
-- **Evidence**: Root file `AGENTS.md` references **Expo Router** with routes in `src/app/`.
-- **Reality**: The actual codebase strictly implements **React Navigation v7** with stack and tab navigators in `src/navigation/`. No `src/app/` folder exists.
-- **Impact**: Could mislead developers relying on stale documentation instead of actual source code.
+- **Resolution**: Corrected [AGENTS.md](file:///D:/Pocketwise/AGENTS.md) to explicitly prescribe **React Navigation v7** with stack and tab navigators in `src/navigation/`. Removed all obsolete Expo Router references.
 
 ---
 
