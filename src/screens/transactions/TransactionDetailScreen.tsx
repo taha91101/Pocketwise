@@ -151,6 +151,23 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
               {transaction.type.toUpperCase()}
             </AppText>
           </View>
+
+          {transaction.isAutomaticallyDetected && (
+            <View
+              style={[
+                styles.typeBadge,
+                {
+                  backgroundColor: colors.surfaceVariant,
+                  borderRadius: radius.full,
+                  marginTop: 6,
+                },
+              ]}
+            >
+              <AppText variant="caption" color={colors.primary} weight="700">
+                ⚡ Auto-detected via {transaction.paymentProvider || 'UPI'}
+              </AppText>
+            </View>
+          )}
         </View>
 
         {/* Info Rows */}
@@ -178,6 +195,12 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
             <DetailRow label="Savings Goal" value={transaction.goalName} icon="target" />
           )}
           <DetailRow label="Payment Method" value={transaction.paymentMethod} icon="dollar-sign" />
+          {transaction.paymentProvider && (
+            <DetailRow label="Provider / App" value={transaction.paymentProvider} icon="zap" />
+          )}
+          {transaction.upiReference && (
+            <DetailRow label="UPI Ref / UTR" value={transaction.upiReference} icon="hash" />
+          )}
           {transaction.notes && <DetailRow label="Notes" value={transaction.notes} icon="file-text" />}
           <DetailRow label="Reference ID" value={transaction.id} icon="hash" isLast />
         </View>

@@ -231,6 +231,61 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </TouchableOpacity>
         </View>
 
+        {/* Section: Automatic UPI Expense Detection */}
+        <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
+          AUTOMATIC EXPENSE TRACKING
+        </AppText>
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AutomaticDetectionSettings')}
+            style={[styles.groupRow, { padding: spacing.md }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: colors.primaryLight,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 10,
+                }}
+              >
+                <Feather name="zap" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="700">
+                  Automatic UPI Detection
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Google Pay, PhonePe, Paytm & Banks
+                </AppText>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppText
+                variant="caption"
+                color={settings.notifications.automaticExpenseDetection !== false ? colors.success : colors.textMuted}
+                weight="700"
+              >
+                {settings.notifications.automaticExpenseDetection !== false ? 'ON' : 'OFF'}
+              </AppText>
+              <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Section: Notifications */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
           SMART NOTIFICATIONS

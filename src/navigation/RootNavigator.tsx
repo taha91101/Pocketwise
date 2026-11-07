@@ -10,6 +10,7 @@ import { ReportsScreen } from '../screens/reports/ReportsScreen';
 import { RecurringScreen } from '../screens/recurring/RecurringScreen';
 import { CalendarScreen } from '../screens/calendar/CalendarScreen';
 import { AccountsScreen } from '../screens/accounts/AccountsScreen';
+import { AutomaticDetectionSettingsScreen } from '../screens/settings/AutomaticDetectionSettingsScreen';
 import { WalkthroughModal } from '../components/modals/WalkthroughModal';
 
 const Stack = createNativeStackNavigator();
@@ -43,6 +44,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="Recurring" component={RecurringScreen} />
             <Stack.Screen name="Calendar" component={CalendarScreen} />
             <Stack.Screen name="Accounts" component={AccountsScreen} />
+            <Stack.Screen name="AutomaticDetectionSettings" component={AutomaticDetectionSettingsScreen} />
           </>
         )}
       </Stack.Navigator>

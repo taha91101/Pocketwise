@@ -84,11 +84,30 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, o
         containerSize={44}
       />
       <View style={[styles.middleCol, { marginLeft: spacing.md }]}>
-        <AppText variant="subtitle2" numberOfLines={1}>
-          {transaction.title}
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <AppText variant="subtitle2" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {transaction.title}
+          </AppText>
+          {transaction.isAutomaticallyDetected && (
+            <View
+              style={{
+                marginLeft: 6,
+                backgroundColor: colors.surfaceVariant,
+                paddingHorizontal: 5,
+                paddingVertical: 1,
+                borderRadius: 4,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <AppText variant="caption" color={colors.primary} weight="800" style={{ fontSize: 10 }}>
+                ⚡ Auto
+              </AppText>
+            </View>
+          )}
+        </View>
         <AppText variant="caption" color={colors.textSecondary} numberOfLines={1} style={{ marginTop: 2 }}>
-          {formattedDate()} • {transaction.paymentMethod || transaction.accountName}
+          {formattedDate()} • {transaction.paymentProvider ? `${transaction.paymentProvider} • ` : ''}{transaction.paymentMethod || transaction.accountName}
         </AppText>
       </View>
       <View style={styles.rightCol}>

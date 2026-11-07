@@ -22,7 +22,45 @@ export interface Transaction {
   receiptUri?: string;
   isRecurring?: boolean;
   recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  merchant?: string;
+  paymentProvider?: string;
+  source?: 'manual' | 'notification' | 'import';
+  sourcePackage?: string;
+  upiReference?: string;
+  isAutomaticallyDetected?: boolean;
+  detectionConfidence?: number;
+  rawReferenceHash?: string;
   createdAt: string;
+}
+
+export type DetectedTransactionStatus = 'DETECTED' | 'CONFIRMED' | 'REJECTED' | 'IGNORED';
+
+export interface DetectedTransaction {
+  id: string;
+  amount: number;
+  type: 'expense' | 'income';
+  merchant: string;
+  suggestedCategory: string;
+  suggestedCategoryId: string;
+  paymentMethod: string;
+  paymentProvider: string;
+  sourcePackage: string;
+  upiReference?: string;
+  transactionTimestamp: number;
+  createdAt: number;
+  isAutomaticallyDetected: boolean;
+  detectionConfidence: number;
+  rawReferenceHash: string;
+  status: DetectedTransactionStatus;
+  rawTitleSnippet?: string;
+  rawTextSnippet?: string;
+  notes?: string;
+}
+
+export interface SupportedPaymentApp {
+  packageName: string;
+  displayName: string;
+  isEnabled: boolean;
 }
 
 export type AccountType = 'bank' | 'cash' | 'credit' | 'wallet' | 'investment';
@@ -98,6 +136,10 @@ export interface NotificationSettings {
   savingsReminders: boolean;
   monthlySummary: boolean;
   goalMilestones: boolean;
+  automaticExpenseDetection?: boolean;
+  autoConfirmHighConfidence?: boolean;
+  detectRefunds?: boolean;
+  detectBankNotifications?: boolean;
 }
 
 export interface UserSettings {

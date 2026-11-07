@@ -10,6 +10,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { AppText } from '../../components/common/AppText';
 import { AppInput } from '../../components/common/AppInput';
 import { TransactionItem } from '../../components/financial/TransactionItem';
+import { PendingDetectedTransactionsBanner } from '../../components/financial/PendingDetectedTransactionsBanner';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AddTransactionModal } from '../../components/modals/AddTransactionModal';
 import { useAppStore } from '../../store/useAppStore';
@@ -143,6 +144,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.listContent, { paddingHorizontal: spacing.lg, paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={<PendingDetectedTransactionsBanner />}
         renderItem={({ item }) => (
           <TransactionItem
             transaction={item}

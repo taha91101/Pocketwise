@@ -18,6 +18,7 @@ import { SavingsGoalCard } from '../../components/financial/SavingsGoalCard';
 import { UpcomingPaymentCard } from '../../components/financial/UpcomingPaymentCard';
 import { FinancialInsightCard } from '../../components/financial/FinancialInsightCard';
 import { TransactionItem } from '../../components/financial/TransactionItem';
+import { PendingDetectedTransactionsBanner } from '../../components/financial/PendingDetectedTransactionsBanner';
 import { AddTransactionModal } from '../../components/modals/AddTransactionModal';
 import { TransferModal } from '../../components/modals/TransferModal';
 import { AddGoalFundsModal } from '../../components/modals/AddGoalFundsModal';
@@ -116,6 +117,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         {/* Balance Card */}
         <View style={{ marginTop: spacing.sm }}>
           <BalanceCard />
+        </View>
+
+        {/* Pending Detected Payments */}
+        <View style={{ marginTop: spacing.md }}>
+          <PendingDetectedTransactionsBanner />
         </View>
 
         {/* New User Welcome / Empty State */}

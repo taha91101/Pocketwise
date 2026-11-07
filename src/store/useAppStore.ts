@@ -10,7 +10,9 @@ import {
   SavingsGoal,
   Transaction,
   UserSettings,
+  DetectedTransaction,
 } from '../types';
+import { UPIDetectionService } from '../services/upiDetectionService';
 import { DEFAULT_CATEGORIES } from '../constants/categories';
 import { DEFAULT_PAYMENT_METHODS } from '../constants/paymentMethods';
 import {
@@ -83,6 +85,18 @@ interface AppState {
   completeOnboarding: (data: Partial<UserSettings>) => Promise<void>;
   completeWalkthrough: () => Promise<void>;
   restartWalkthrough: () => Promise<void>;
+
+  // Data - Automatic UPI Expense Detection
+  detectedTransactions: DetectedTransaction[];
+  isNotificationAccessGranted: boolean;
+
+  // Actions - Automatic UPI Expense Detection
+  syncDetectedTransactions: () => Promise<void>;
+  processIncomingDetectedTransaction: (detected: DetectedTransaction) => Promise<Transaction | null>;
+  confirmDetectedTransaction: (id: string, edits?: Partial<Transaction>) => Promise<Transaction | null>;
+  rejectDetectedTransaction: (id: string) => Promise<boolean>;
+  clearDetectedTransactions: () => Promise<void>;
+  checkNotificationAccessStatus: () => Promise<boolean>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -95,6 +109,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   categories: DEFAULT_CATEGORIES,
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   settings: INITIAL_USER_SETTINGS,
+  detectedTransactions: [],
+  isNotificationAccessGranted: false,
 
   overview: FinancialCalculationsService.calculateOverview(
     INITIAL_ACCOUNTS,
@@ -119,6 +135,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         savedRecurring,
         savedSettings,
         savedCategories,
+        savedDetected,
       ] = await Promise.all([
         StorageService.getItem<Account[]>(STORAGE_KEYS.ACCOUNTS, INITIAL_ACCOUNTS),
         StorageService.getItem<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS),
@@ -127,6 +144,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.getItem<RecurringPayment[]>(STORAGE_KEYS.RECURRING_PAYMENTS, INITIAL_RECURRING_PAYMENTS),
         StorageService.getItem<UserSettings>(STORAGE_KEYS.USER_SETTINGS, INITIAL_USER_SETTINGS),
         StorageService.getItem<Category[]>(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES),
+        StorageService.getItem<DetectedTransaction[]>(STORAGE_KEYS.DETECTED_TRANSACTIONS, []),
       ]);
 
       const overview = FinancialCalculationsService.calculateOverview(savedAccounts, savedTransactions, savedGoals);
@@ -138,6 +156,35 @@ export const useAppStore = create<AppState>((set, get) => ({
         savedSettings.currencySymbol
       );
 
+      // Check native storage & permissions
+      let finalDetected = savedDetected || [];
+      let isAccessGranted = false;
+
+      if (UPIDetectionService.isAvailable()) {
+        try {
+          isAccessGranted = await UPIDetectionService.isNotificationAccessGranted();
+          const nativeList = await UPIDetectionService.getDetectedTransactions();
+          if (nativeList && nativeList.length > 0) {
+            // Merge by ID keeping most recent
+            const map = new Map<string, DetectedTransaction>();
+            nativeList.forEach((item) => map.set(item.id, item));
+            finalDetected.forEach((item) => {
+              if (!map.has(item.id)) map.set(item.id, item);
+            });
+            finalDetected = Array.from(map.values()).sort(
+              (a, b) => b.transactionTimestamp - a.transactionTimestamp
+            );
+          }
+        } catch (e) {
+          console.warn('Native detection check error:', e);
+        }
+
+        // Subscribe to real-time events
+        UPIDetectionService.subscribeToDetectionEvents(async (incomingTx) => {
+          await get().processIncomingDetectedTransaction(incomingTx);
+        });
+      }
+
       set({
         isHydrated: true,
         accounts: savedAccounts,
@@ -147,6 +194,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         recurringPayments: savedRecurring,
         settings: savedSettings,
         categories: savedCategories,
+        detectedTransactions: finalDetected,
+        isNotificationAccessGranted: isAccessGranted,
         overview,
         insights,
       });
@@ -823,5 +872,119 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
     await StorageService.setItem(STORAGE_KEYS.USER_SETTINGS, updated);
     set({ settings: updated });
+  },
+
+  syncDetectedTransactions: async () => {
+    try {
+      const isGranted = await UPIDetectionService.isNotificationAccessGranted();
+      const nativeList = await UPIDetectionService.getDetectedTransactions();
+      const savedList = await StorageService.getItem<DetectedTransaction[]>(
+        STORAGE_KEYS.DETECTED_TRANSACTIONS,
+        []
+      );
+
+      const map = new Map<string, DetectedTransaction>();
+      nativeList.forEach((item) => map.set(item.id, item));
+      savedList.forEach((item) => {
+        if (!map.has(item.id)) map.set(item.id, item);
+      });
+      const merged = Array.from(map.values()).sort(
+        (a, b) => b.transactionTimestamp - a.transactionTimestamp
+      );
+
+      set({ detectedTransactions: merged, isNotificationAccessGranted: isGranted });
+      await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, merged);
+    } catch (e) {
+      console.warn('Error syncing detected transactions:', e);
+    }
+  },
+
+  checkNotificationAccessStatus: async () => {
+    const isGranted = await UPIDetectionService.isNotificationAccessGranted();
+    set({ isNotificationAccessGranted: isGranted });
+    return isGranted;
+  },
+
+  processIncomingDetectedTransaction: async (detected) => {
+    const state = get();
+    const notificationPrefs = state.settings.notifications;
+    const isAutoDetectEnabled = notificationPrefs.automaticExpenseDetection !== false;
+
+    if (!isAutoDetectEnabled) return null;
+
+    // Check if auto-confirm is enabled and confidence >= 0.85
+    const shouldAutoConfirm =
+      notificationPrefs.autoConfirmHighConfidence !== false &&
+      detected.detectionConfidence >= 0.85;
+
+    if (shouldAutoConfirm) {
+      const txInput = UPIDetectionService.convertDetectedToTransactionInput(
+        detected,
+        state.categories,
+        state.accounts
+      );
+
+      const createdTx = await state.addTransaction(txInput);
+      await UPIDetectionService.confirmDetectedTransaction(detected.id);
+
+      const updatedDetected = state.detectedTransactions.map((d) =>
+        d.id === detected.id ? { ...d, status: 'CONFIRMED' as const } : d
+      );
+      if (!updatedDetected.some((d) => d.id === detected.id)) {
+        updatedDetected.unshift({ ...detected, status: 'CONFIRMED' });
+      }
+
+      set({ detectedTransactions: updatedDetected });
+      await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, updatedDetected);
+      return createdTx;
+    } else {
+      // Pending user confirmation
+      const existing = state.detectedTransactions.filter((d) => d.id !== detected.id);
+      const nextList = [detected, ...existing];
+      set({ detectedTransactions: nextList });
+      await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, nextList);
+      return null;
+    }
+  },
+
+  confirmDetectedTransaction: async (id, edits) => {
+    const state = get();
+    const target = state.detectedTransactions.find((d) => d.id === id);
+    if (!target) return null;
+
+    const txInput = UPIDetectionService.convertDetectedToTransactionInput(
+      target,
+      state.categories,
+      state.accounts,
+      edits
+    );
+
+    const createdTx = await state.addTransaction(txInput);
+    await UPIDetectionService.confirmDetectedTransaction(id);
+
+    const updatedDetected = state.detectedTransactions.map((d) =>
+      d.id === id ? { ...d, status: 'CONFIRMED' as const } : d
+    );
+    set({ detectedTransactions: updatedDetected });
+    await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, updatedDetected);
+    return createdTx;
+  },
+
+  rejectDetectedTransaction: async (id) => {
+    const state = get();
+    await UPIDetectionService.rejectDetectedTransaction(id);
+
+    const updatedDetected = state.detectedTransactions.map((d) =>
+      d.id === id ? { ...d, status: 'REJECTED' as const } : d
+    );
+    set({ detectedTransactions: updatedDetected });
+    await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, updatedDetected);
+    return true;
+  },
+
+  clearDetectedTransactions: async () => {
+    await UPIDetectionService.clearDetectedTransactions();
+    set({ detectedTransactions: [] });
+    await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, []);
   },
 }));

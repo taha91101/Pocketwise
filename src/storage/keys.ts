@@ -6,5 +6,6 @@ export const STORAGE_KEYS = {
   RECURRING_PAYMENTS: '@pocketwise_recurring_v2',
   CATEGORIES: '@pocketwise_categories_v2',
   USER_SETTINGS: '@pocketwise_settings_v2',
+  DETECTED_TRANSACTIONS: '@pocketwise_detected_transactions_v2',
 };
 
