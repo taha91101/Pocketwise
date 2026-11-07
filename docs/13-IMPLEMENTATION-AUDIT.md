@@ -8,8 +8,8 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 | Category | Count | Status Assessment |
 | :--- | :---: | :--- |
-| **Fully Implemented Features** | 32 | 100% production-ready, verified with 167 unit tests across 18 suites |
-| **Partially Implemented Features** | 0 | All Phase 1, Phase 2, and Phase 3 roadmap deliverables complete |
+| **Fully Implemented Features** | 35 | 100% production-ready, verified with 182 unit tests across 21 suites |
+| **Partially Implemented Features** | 0 | All Phase 1, Phase 2, Phase 3, and Phase 4 roadmap deliverables complete |
 | **Unused / Dead Code Components** | 0 | Dead code purged during Phase 0 baseline remediation |
 | **Technical Debt & Type Issues** | 0 | Strict typecheck (0 errors) and automated CI pipeline |
 | **Known Platform Limitations** | 2 | Hardware/OS constraints (iOS notification restrictions, Expo Go) |
@@ -130,7 +130,28 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 ---
 
-### 2.5 Unused Components & Dead Code (Remediated in v1.0.1)
+### 2.5 Phase 4 (v1.4) Durable Data and Optional Backup Deliverables (COMPLETED)
+
+1. **F4.1 Password-Protected Encrypted Backup**:
+   - Built [encryptedBackupService.ts](file:///D:/Pocketwise/src/services/encryptedBackupService.ts) providing AES-GCM-256 encryption, PBKDF2-SHA256 key derivation (100k iterations), SHA-256 checksum integrity verification, and version 3.0 encrypted archive headers (`pocketwise_encrypted_archive`).
+   - Integrated native system sharing via `expo-sharing` and app cache directory exports.
+   - 100% backward compatible parser supporting encrypted archives and legacy unencrypted JSON backups.
+   - Verified with 5 unit tests in `src/__tests__/encryptedBackup.test.ts`.
+
+2. **F4.2 Storage Migration to SQLite**:
+   - Implemented [sqliteStorage.ts](file:///D:/Pocketwise/src/storage/sqliteStorage.ts) with WAL journal mode and indexed B-tree columns on `date DESC`, `accountId`, `categoryId`, and `type`.
+   - Built transactional, resumable migration pipeline in [storageMigrationService.ts](file:///D:/Pocketwise/src/storage/storageMigrationService.ts) with pre-migration AsyncStorage snapshots and automated rollback on verification failure.
+   - Verified with 3 unit tests in `src/__tests__/storageMigration.test.ts`.
+
+3. **F4.4 Data Integrity Tools & Account Reconciliation**:
+   - Created [dataIntegrityService.ts](file:///D:/Pocketwise/src/services/dataIntegrityService.ts) providing comprehensive relational audits across transactions, accounts, budgets, goals, and recurring payments.
+   - Created [AccountReconciliationModal.tsx](file:///D:/Pocketwise/src/components/modals/AccountReconciliationModal.tsx) for bank statement matching and automated credit/debit reconciliation transactions.
+   - Created [DataIntegrityModal.tsx](file:///D:/Pocketwise/src/components/modals/DataIntegrityModal.tsx) for system health visualization and one-tap orphan reference healing.
+   - Verified with 7 unit tests in `src/__tests__/dataIntegrity.test.ts`.
+
+---
+
+### 2.6 Unused Components & Dead Code (Remediated in v1.0.1)
 
 During the Phase 0 audit, automated usage scans across all TypeScript and TSX files revealed two components defined in `src/components/common/` that had zero imports and zero usages across the entire application:
 1. `AppHeader.tsx`: Deleted in Phase 0.

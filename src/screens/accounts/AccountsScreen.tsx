@@ -19,6 +19,7 @@ import { ProgressBar } from '../../components/common/ProgressBar';
 import { TransferModal } from '../../components/modals/TransferModal';
 import { AddLiabilityModal } from '../../components/modals/AddLiabilityModal';
 import { RecordDebtPaymentModal } from '../../components/modals/RecordDebtPaymentModal';
+import { AccountReconciliationModal } from '../../components/modals/AccountReconciliationModal';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAppStore } from '../../store/useAppStore';
@@ -44,6 +45,8 @@ export const AccountsScreen: React.FC = () => {
   const [activeLiabilityForPayment, setActiveLiabilityForPayment] = useState<Liability | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
   const [liabilityToDelete, setLiabilityToDelete] = useState<Liability | null>(null);
+  const [accountToReconcile, setAccountToReconcile] = useState<Account | null>(null);
+  const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
 
   // New Account form state
   const [newAccName, setNewAccName] = useState('');
@@ -259,16 +262,38 @@ export const AccountsScreen: React.FC = () => {
             </View>
 
             <View style={[styles.cardFooter, { marginTop: spacing.md }]}>
-              <AppText variant="caption" color={colors.textMuted}>
-                Balance
-              </AppText>
-              <AppText
-                variant="amountMedium"
-                weight="800"
-                color={item.balance < 0 ? colors.error : colors.textPrimary}
+              <View>
+                <AppText variant="caption" color={colors.textMuted}>
+                  Balance
+                </AppText>
+                <AppText
+                  variant="amountMedium"
+                  weight="800"
+                  color={item.balance < 0 ? colors.error : colors.textPrimary}
+                >
+                  {FinancialCalculationsService.formatCurrency(item.balance, currencySymbol)}
+                </AppText>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setAccountToReconcile(item);
+                  setIsReconcileModalOpen(true);
+                }}
+                style={[
+                  styles.reconcileBtn,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                  },
+                ]}
               >
-                {FinancialCalculationsService.formatCurrency(item.balance, currencySymbol)}
-              </AppText>
+                <Feather name="check-circle" size={13} color={colors.primary} />
+                <AppText variant="caption" weight="700" color={colors.primary} style={{ marginLeft: 4 }}>
+                  Reconcile
+                </AppText>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -600,6 +625,15 @@ export const AccountsScreen: React.FC = () => {
         }}
         onCancel={() => setLiabilityToDelete(null)}
       />
+
+      <AccountReconciliationModal
+        visible={isReconcileModalOpen}
+        account={accountToReconcile}
+        onClose={() => {
+          setIsReconcileModalOpen(false);
+          setAccountToReconcile(null);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -662,6 +696,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  reconcileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
   },
   modalOverlay: {
     flex: 1,

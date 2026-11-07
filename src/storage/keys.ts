@@ -11,5 +11,7 @@ export const STORAGE_KEYS = {
   DETECTION_DIAGNOSTICS: '@pocketwise_detection_diagnostics_v2',
   LIABILITIES: '@pocketwise_liabilities_v2',
   SHARED_EXPENSES: '@pocketwise_shared_expenses_v2',
+  SQLITE_MIGRATED: '@pocketwise_sqlite_migrated',
+  PRE_MIGRATION_BACKUP: '@pocketwise_pre_migration_backup',
 };
 

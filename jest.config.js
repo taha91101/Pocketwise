@@ -15,5 +15,7 @@ module.exports = {
     '^expo-image-picker$': '<rootDir>/src/__tests__/__mocks__/expo-image-picker.js',
     '^expo-file-system(/legacy)?$': '<rootDir>/src/__tests__/__mocks__/expo-file-system.js',
     '^expo-notifications$': '<rootDir>/src/__tests__/__mocks__/expo-notifications.js',
+    '^expo-sqlite$': '<rootDir>/src/__tests__/__mocks__/expo-sqlite.js',
+    '^expo-sharing$': '<rootDir>/src/__tests__/__mocks__/expo-sharing.js',
   },
 };

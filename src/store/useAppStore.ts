@@ -37,6 +37,9 @@ import { ForecastService } from '../services/forecastService';
 import { BudgetService } from '../services/budgetService';
 import { AppExportData } from '../services/exportImportService';
 import { NotificationService } from '../services/notificationService';
+import { DataIntegrityService, IntegrityAuditReport } from '../services/dataIntegrityService';
+import { StorageMigrationService, MigrationResult } from '../storage/storageMigrationService';
+import { SQLiteStorage } from '../storage/sqliteStorage';
 
 interface AppState {
   // Data
@@ -161,6 +164,14 @@ interface AppState {
 
   // Actions - Budget Rollovers (F3.2)
   applyBudgetRollovers: () => Promise<void>;
+
+  // Data & Actions - Storage & Integrity (Phase 4)
+  isSQLiteMigrated: boolean;
+  checkSQLiteStatus: () => Promise<boolean>;
+  runSQLiteMigration: () => Promise<MigrationResult>;
+  auditDataIntegrity: () => IntegrityAuditReport;
+  reconcileAccount: (accountId: string, actualBalance: number, notes?: string) => Promise<boolean>;
+  repairOrphans: (fallbackCategoryId?: string, fallbackAccountId?: string) => Promise<number>;
 }
 
 export function computeDerivedState(
@@ -211,6 +222,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   autoRecordedNotice: null,
   liabilities: [],
   sharedExpenses: [],
+  isSQLiteMigrated: false,
 
   ...computeDerivedState(
     INITIAL_ACCOUNTS,
@@ -291,6 +303,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
       }
 
+      let isSQLiteMigrated = false;
+      try {
+        isSQLiteMigrated = await StorageMigrationService.isMigrationCompleted();
+      } catch (err) {
+        console.warn('SQLite migration check error on hydrate:', err);
+      }
+
       set({
         isHydrated: true,
         accounts: savedAccounts,
@@ -306,6 +325,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         detectionDiagnostics: savedDiagnostics || [],
         liabilities: savedLiabilities || [],
         sharedExpenses: savedSharedExpenses || [],
+        isSQLiteMigrated,
         ...derived,
       });
 
@@ -369,6 +389,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const categories = data.categories || get().categories || DEFAULT_CATEGORIES;
       const settings = data.settings || get().settings;
       const learnedMerchantRules = data.learnedMerchantRules || get().learnedMerchantRules || [];
+      const liabilities = data.liabilities || get().liabilities || [];
+      const sharedExpenses = data.sharedExpenses || get().sharedExpenses || [];
 
       await Promise.all([
         StorageService.setItem(STORAGE_KEYS.ACCOUNTS, accounts),
@@ -379,7 +401,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.setItem(STORAGE_KEYS.CATEGORIES, categories),
         StorageService.setItem(STORAGE_KEYS.USER_SETTINGS, settings),
         StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, learnedMerchantRules),
+        StorageService.setItem(STORAGE_KEYS.LIABILITIES, liabilities),
+        StorageService.setItem(STORAGE_KEYS.SHARED_EXPENSES, sharedExpenses),
       ]);
+
+      if (await StorageMigrationService.isMigrationCompleted()) {
+        try {
+          await SQLiteStorage.insertTransactionsBatch(transactions);
+        } catch (e) {
+          console.warn('SQLite batch insert error on import:', e);
+        }
+      }
 
       const derived = computeDerivedState(
         accounts,
@@ -387,7 +419,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         budgets,
         savingsGoals,
         recurringPayments,
-        get().liabilities,
+        liabilities,
         settings.currencySymbol
       );
 
@@ -400,6 +432,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         categories,
         settings,
         learnedMerchantRules,
+        liabilities,
+        sharedExpenses,
         ...derived,
       });
       return true;
@@ -1748,5 +1782,192 @@ export const useAppStore = create<AppState>((set, get) => ({
       state.settings.currencySymbol
     );
     set({ budgets: updatedBudgets, ...derived });
+  },
+
+  // Actions - Storage & Integrity (Phase 4)
+  checkSQLiteStatus: async () => {
+    const isMigrated = await StorageMigrationService.isMigrationCompleted();
+    set({ isSQLiteMigrated: isMigrated });
+    return isMigrated;
+  },
+
+  runSQLiteMigration: async () => {
+    const result = await StorageMigrationService.runMigration();
+    if (result.success) {
+      set({ isSQLiteMigrated: true });
+    }
+    return result;
+  },
+
+  auditDataIntegrity: () => {
+    const state = get();
+    return DataIntegrityService.auditDataIntegrity(
+      state.accounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.categories
+    );
+  },
+
+  reconcileAccount: async (accountId: string, actualBalance: number, notes?: string) => {
+    const state = get();
+    const account = state.accounts.find((a) => a.id === accountId);
+    if (!account) return false;
+
+    const result = DataIntegrityService.reconcileAccount(account, actualBalance, notes);
+    if (result.difference === 0) {
+      return true;
+    }
+
+    const updatedAccounts = state.accounts.map((a) =>
+      a.id === accountId ? result.updatedAccount : a
+    );
+
+    let updatedTransactions = state.transactions;
+    if (result.adjustmentTx) {
+      const newTx: Transaction = {
+        ...result.adjustmentTx,
+        id: `tx-adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        createdAt: new Date().toISOString(),
+      };
+      updatedTransactions = [newTx, ...updatedTransactions];
+
+      if (await StorageMigrationService.isMigrationCompleted()) {
+        try {
+          await SQLiteStorage.insertTransaction(newTx);
+        } catch (err) {
+          console.warn('Failed to insert adjustment tx into SQLite:', err);
+        }
+      }
+    }
+
+    await Promise.all([
+      StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts),
+      StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, updatedTransactions),
+    ]);
+
+    const derived = computeDerivedState(
+      updatedAccounts,
+      updatedTransactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
+      state.settings.currencySymbol
+    );
+
+    set({
+      accounts: updatedAccounts,
+      transactions: updatedTransactions,
+      ...derived,
+    });
+
+    return true;
+  },
+
+  repairOrphans: async (fallbackCategoryId?: string, fallbackAccountId?: string) => {
+    const state = get();
+    const fallbackCat =
+      (fallbackCategoryId && state.categories.find((c) => c.id === fallbackCategoryId)) ||
+      state.categories.find((c) => c.id === 'cat-others') ||
+      state.categories[0];
+    const fallbackAcc =
+      (fallbackAccountId && state.accounts.find((a) => a.id === fallbackAccountId)) ||
+      state.accounts[0];
+
+    if (!fallbackCat || !fallbackAcc) return 0;
+
+    const validCategoryIds = new Set(state.categories.map((c) => c.id));
+    const validAccountIds = new Set(state.accounts.map((a) => a.id));
+
+    let repairedCount = 0;
+
+    // Repair transactions
+    const repairedTransactions = state.transactions.map((tx) => {
+      let modified = false;
+      let nextTx = { ...tx };
+      if (!validCategoryIds.has(tx.categoryId)) {
+        nextTx.categoryId = fallbackCat.id;
+        nextTx.categoryName = fallbackCat.name;
+        nextTx.categoryIcon = fallbackCat.icon;
+        nextTx.categoryColor = fallbackCat.color;
+        modified = true;
+      }
+      if (!validAccountIds.has(tx.accountId)) {
+        nextTx.accountId = fallbackAcc.id;
+        nextTx.accountName = fallbackAcc.name;
+        modified = true;
+      }
+      if (modified) repairedCount++;
+      return nextTx;
+    });
+
+    // Repair budgets
+    const repairedBudgets = state.budgets.map((b) => {
+      if (!validCategoryIds.has(b.categoryId)) {
+        repairedCount++;
+        return {
+          ...b,
+          categoryId: fallbackCat.id,
+          categoryName: fallbackCat.name,
+        };
+      }
+      return b;
+    });
+
+    // Repair recurring payments
+    const repairedRecurring = state.recurringPayments.map((r) => {
+      let modified = false;
+      let nextR = { ...r };
+      if (!validCategoryIds.has(r.categoryId)) {
+        nextR.categoryId = fallbackCat.id;
+        nextR.categoryName = fallbackCat.name;
+        modified = true;
+      }
+      if (r.accountId && !validAccountIds.has(r.accountId)) {
+        nextR.accountId = fallbackAcc.id;
+        nextR.accountName = fallbackAcc.name;
+        modified = true;
+      }
+      if (modified) repairedCount++;
+      return nextR;
+    });
+
+    if (repairedCount > 0) {
+      await Promise.all([
+        StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, repairedTransactions),
+        StorageService.setItem(STORAGE_KEYS.BUDGETS, repairedBudgets),
+        StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, repairedRecurring),
+      ]);
+
+      if (await StorageMigrationService.isMigrationCompleted()) {
+        try {
+          await SQLiteStorage.insertTransactionsBatch(repairedTransactions);
+        } catch (e) {
+          console.warn('SQLite batch update error during repair:', e);
+        }
+      }
+
+      const derived = computeDerivedState(
+        state.accounts,
+        repairedTransactions,
+        repairedBudgets,
+        state.savingsGoals,
+        repairedRecurring,
+        state.liabilities,
+        state.settings.currencySymbol
+      );
+
+      set({
+        transactions: repairedTransactions,
+        budgets: repairedBudgets,
+        recurringPayments: repairedRecurring,
+        ...derived,
+      });
+    }
+
+    return repairedCount;
   },
 }));

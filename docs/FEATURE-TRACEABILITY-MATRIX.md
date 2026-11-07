@@ -4,7 +4,7 @@ This matrix establishes the complete end-to-end traceability of every capability
 
 ---
 
-## Master Canonical Traceability Matrix (32 Features: 32 Complete, 0 Partial)
+## Master Canonical Traceability Matrix (35 Features: 35 Complete, 0 Partial)
 
 | # | Feature | Primary Screens & Routes | Components & Modals | Store Actions & APIs | Domain Services | Database Models & Keys | Test Suite Coverage | Status |
 | :-: | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
@@ -40,3 +40,6 @@ This matrix establishes the complete end-to-end traceability of every capability
 | **30** | **Net Worth & Debt Liabilities Tracking (F3.5)** | `AccountsScreen`<br/>`AddLiabilityModal`<br/>`RecordDebtPaymentModal` | Net worth card (assets vs debt), credit card utilization, loan payoff progress bar | `addLiability()`<br/>`updateLiability()`<br/>`deleteLiability()`<br/>`recordLiabilityPayment()` | `FinancialCalculationsService.calculateOverview` (net worth computation) | `Liability`<br/>`@pocketwise_liabilities_v2` | `liabilitiesAndNetWorth.test.ts` (4 unit tests) | **Complete** |
 | **31** | **Shared Expenses & Friends Splitting (F3.6)** | `TransactionDetailScreen`<br/>`SplitWithFriendsModal` | "Split with Friends" button, lent/borrowed tracker, settlement modal | `addSharedExpense()`<br/>`settleSharedExpense()`<br/>`deleteSharedExpense()` | In-store split tracker | `SharedExpense`<br/>`@pocketwise_shared_expenses_v2` | `sharedExpenses.test.ts` (3 unit tests) | **Complete** |
 | **32** | **Period-over-Period Comparison & Reports (F3.7)** | `ReportsScreen` | Period comparison card (% delta expenses/income), cash flow statement | `useAppStore.transactions`<br/>`useAppStore.accounts` | `FinancialCalculationsService.calculateGrowthPercentage` | `FinancialOverview` | Verified in Reports & calculations | **Complete** |
+| **33** | **Password-Protected Encrypted Backup (F4.1)** | `ProfileScreen` | `EncryptedBackupModal`, password prompt, one-tap file sharing via `expo-sharing` | `importData()` | `EncryptedBackupService` (AES-GCM-256, PBKDF2-SHA256, v3.0 archive header, backward compatible) | `EncryptedArchiveHeader`<br/>`.pwbackup` / `.json` | `encryptedBackup.test.ts` (5 unit tests) | **Complete** |
+| **34** | **Storage Migration to Indexed SQLite (F4.2)** | `ProfileScreen` | SQLite Engine Status card, "Migrate to SQLite" action | `checkSQLiteStatus()`<br/>`runSQLiteMigration()` | `StorageMigrationService`<br/>`SQLiteStorage` (WAL journal mode, date/account/category indices) | SQLite table `transactions`<br/>`detected_transactions`<br/>`@pocketwise_sqlite_migrated` | `storageMigration.test.ts` (3 unit tests) | **Complete** |
+| **35** | **Data Integrity Tools & Account Reconciliation (F4.4)** | `AccountsScreen`<br/>`ProfileScreen` | `DataIntegrityModal`, `AccountReconciliationModal`, Reconcile button on account cards | `auditDataIntegrity()`<br/>`reconcileAccount()`<br/>`repairOrphans()` | `DataIntegrityService` (orphan detection, balance adjustment generator, one-tap repair) | `IntegrityAuditReport`<br/>`IntegrityIssue`<br/>Adjustment transaction entry | `dataIntegrity.test.ts` (7 unit tests) | **Complete** |

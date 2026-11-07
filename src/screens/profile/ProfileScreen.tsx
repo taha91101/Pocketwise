@@ -17,11 +17,14 @@ import { AppInput } from '../../components/common/AppInput';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { CURRENCY_OPTIONS } from '../../constants/paymentMethods';
-import { ExportImportService } from '../../services/exportImportService';
+import { ExportImportService, AppExportData } from '../../services/exportImportService';
+import { EncryptedBackupService } from '../../services/encryptedBackupService';
 import { Feather } from '@expo/vector-icons';
 import { SetPinModal, PinModalMode } from '../../components/modals/SetPinModal';
 import { SecurityService } from '../../services/securityService';
 import { ManageCategoriesModal } from '../../components/modals/ManageCategoriesModal';
+import { DataIntegrityModal } from '../../components/modals/DataIntegrityModal';
+import { AccountReconciliationModal } from '../../components/modals/AccountReconciliationModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, spacing, radius, shadows, isDark } = useTheme();
@@ -37,6 +40,8 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const savingsGoals = useAppStore((state) => state.savingsGoals);
   const recurringPayments = useAppStore((state) => state.recurringPayments);
   const importData = useAppStore((state) => state.importData);
+  const isSQLiteMigrated = useAppStore((state) => state.isSQLiteMigrated);
+  const runSQLiteMigration = useAppStore((state) => state.runSQLiteMigration);
 
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -45,7 +50,23 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importJsonText, setImportJsonText] = useState('');
+  const [importPassword, setImportPassword] = useState('');
   const [importError, setImportError] = useState('');
+
+  // Encrypted Backup
+  const [isEncryptedBackupModalOpen, setIsEncryptedBackupModalOpen] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [confirmBackupPassword, setConfirmBackupPassword] = useState('');
+  const [backupError, setBackupError] = useState('');
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+
+  // SQLite Migration
+  const [isMigratingSQLite, setIsMigratingSQLite] = useState(false);
+  const [migrationStatusNotice, setMigrationStatusNotice] = useState('');
+
+  // Data Integrity & Reconciliation
+  const [isDataIntegrityModalOpen, setIsDataIntegrityModalOpen] = useState(false);
+  const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
 
   // Currency modal
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
@@ -97,19 +118,85 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const handleProcessImport = async () => {
     setImportError('');
-    const { isValid, data, error } = ExportImportService.validateAndParseImportJSON(importJsonText);
-    if (!isValid || !data) {
-      setImportError(error || 'Invalid JSON format');
+    try {
+      const res = await EncryptedBackupService.parseAndRestoreBackup(
+        importJsonText,
+        importPassword.trim() || undefined
+      );
+
+      if (!res.isValid || !res.data) {
+        setImportError(res.error || 'Failed to parse backup archive');
+        return;
+      }
+
+      const success = await importData(res.data);
+      if (success) {
+        setIsImportModalOpen(false);
+        setImportJsonText('');
+        setImportPassword('');
+        Alert.alert('Import Success', 'Your financial data has been imported and synchronized.');
+      } else {
+        setImportError('Failed to import backup data');
+      }
+    } catch (err: any) {
+      setImportError(err?.message || 'Restore error');
+    }
+  };
+
+  const handlePerformEncryptedBackup = async () => {
+    setBackupError('');
+    if (backupPassword && backupPassword !== confirmBackupPassword) {
+      setBackupError('Passwords do not match');
       return;
     }
 
-    const success = await importData(data);
-    if (success) {
-      setIsImportModalOpen(false);
-      setImportJsonText('');
-      Alert.alert('Import Success', 'Your financial data has been imported and synchronized.');
-    } else {
-      setImportError('Failed to import backup data');
+    try {
+      setIsExportingBackup(true);
+      const fullExportData: AppExportData = {
+        version: '3.0.0',
+        exportedAt: new Date().toISOString(),
+        transactions,
+        accounts,
+        budgets,
+        savingsGoals,
+        recurringPayments,
+        categories: useAppStore.getState().categories,
+        settings,
+        liabilities: useAppStore.getState().liabilities,
+        sharedExpenses: useAppStore.getState().sharedExpenses,
+      };
+
+      await EncryptedBackupService.createAndShareEncryptedBackup(
+        fullExportData,
+        backupPassword.trim() || undefined
+      );
+
+      setIsEncryptedBackupModalOpen(false);
+      setBackupPassword('');
+      setConfirmBackupPassword('');
+    } catch (err: any) {
+      setBackupError(err?.message || 'Failed to create backup archive');
+    } finally {
+      setIsExportingBackup(false);
+    }
+  };
+
+  const handleRunSQLiteMigration = async () => {
+    try {
+      setIsMigratingSQLite(true);
+      setMigrationStatusNotice('');
+      const res = await runSQLiteMigration();
+      if (res.success) {
+        setMigrationStatusNotice(
+          `SQLite indexed successfully! ${res.transactionsMigrated} transactions & ${res.detectedMigrated} detected records in ${res.durationMs}ms.`
+        );
+      } else {
+        setMigrationStatusNotice(`Migration failed: ${res.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      setMigrationStatusNotice(`Error: ${e?.message || 'Migration failed'}`);
+    } finally {
+      setIsMigratingSQLite(false);
     }
   };
 
@@ -563,7 +650,101 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </TouchableOpacity>
         </View>
 
-        {/* Section: Data Backup & Export */}
+        {/* Section: Storage & Database Engine (Phase 4) */}
+        <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
+          STORAGE & DATABASE ENGINE
+        </AppText>
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.groupRow,
+              { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="database" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Storage Architecture
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  {isSQLiteMigrated
+                    ? 'SQLite Indexed Tables (High-Speed & Scalable)'
+                    : 'AsyncStorage (Key-Value Document Store)'}
+                </AppText>
+              </View>
+            </View>
+            <View
+              style={{
+                backgroundColor: isSQLiteMigrated ? colors.success + '20' : colors.warning + '20',
+                paddingVertical: 3,
+                paddingHorizontal: 8,
+                borderRadius: 6,
+              }}
+            >
+              <AppText
+                variant="caption"
+                weight="700"
+                color={isSQLiteMigrated ? colors.success : colors.warning}
+              >
+                {isSQLiteMigrated ? 'SQLITE ACTIVE' : 'PENDING'}
+              </AppText>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.groupRow,
+              { padding: spacing.md, borderBottomWidth: !isSQLiteMigrated ? 1 : 0, borderBottomColor: colors.borderLight },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="layers" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Indexed Records
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  {transactions.length} transactions, {accounts.length} accounts, {budgets.length} budgets
+                </AppText>
+              </View>
+            </View>
+          </View>
+
+          {!isSQLiteMigrated && (
+            <View style={{ padding: spacing.md }}>
+              <AppButton
+                title="Migrate Storage to Indexed SQLite"
+                variant="primary"
+                iconName="cpu"
+                size="sm"
+                loading={isMigratingSQLite}
+                onPress={handleRunSQLiteMigration}
+                fullWidth
+              />
+            </View>
+          )}
+
+          {migrationStatusNotice ? (
+            <View style={{ padding: spacing.md, backgroundColor: colors.background }}>
+              <AppText variant="caption" color={colors.primary} weight="medium">
+                {migrationStatusNotice}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Section: Data Backup & Integrity */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
           DATA & PRIVACY
         </AppText>
@@ -579,14 +760,37 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           ]}
         >
           <TouchableOpacity
+            onPress={() => setIsEncryptedBackupModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="lock" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Encrypted Full Backup (AES-256)
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Password-protected export with one-tap file sharing
+                </AppText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={handleExportJSON}
             style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Feather name="download" size={18} color={colors.primary} style={{ marginRight: 10 }} />
-              <AppText variant="body2" weight="600">
-                Export Full Backup (JSON)
-              </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="code" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  View Raw JSON Payload
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Inspect full unencrypted JSON backup text
+                </AppText>
+              </View>
             </View>
             <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -595,24 +799,70 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             onPress={handleExportCSV}
             style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Feather name="file-text" size={18} color={colors.primary} style={{ marginRight: 10 }} />
-              <AppText variant="body2" weight="600">
-                Export Transactions (CSV)
-              </AppText>
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Export Transactions (CSV)
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Spreadsheet compatible format
+                </AppText>
+              </View>
             </View>
             <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setIsImportModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="upload" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Import / Restore Backup
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Restore encrypted (.pwbackup) or plain JSON backups
+                </AppText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsDataIntegrityModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="check-square" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Data Integrity & Audit Tools
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Audit orphaned categories, accounts, and run one-tap repair
+                </AppText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsReconcileModalOpen(true)}
             style={[styles.groupRow, { padding: spacing.md }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Feather name="upload" size={18} color={colors.primary} style={{ marginRight: 10 }} />
-              <AppText variant="body2" weight="600">
-                Import / Restore Backup (JSON)
-              </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="sliders" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Account Reconciliation
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Reconcile balances against bank statements
+                </AppText>
+              </View>
             </View>
             <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -758,6 +1008,92 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
       </Modal>
 
+      {/* Encrypted Backup Modal */}
+      <Modal visible={isEncryptedBackupModalOpen} animationType="slide" transparent>
+        <View
+          style={[
+            styles.modalBackdrop,
+            {
+              backgroundColor: colors.backdrop,
+              paddingTop: Math.max(insets.top, 20),
+              paddingBottom: Math.max(insets.bottom, 20),
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderRadius: radius.xxl,
+                padding: spacing.lg,
+                maxWidth: Math.min(width - 32, 420),
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View>
+                <AppText variant="h3" weight="700">
+                  Encrypted Backup
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  AES-GCM-256 with PBKDF2 key derivation
+                </AppText>
+              </View>
+              <TouchableOpacity onPress={() => setIsEncryptedBackupModalOpen(false)}>
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.md }}>
+              Set a password to protect your financial records. If left blank, a standard unencrypted backup will be created.
+            </AppText>
+
+            <AppInput
+              label="Backup Password (Optional)"
+              placeholder="Enter strong password"
+              value={backupPassword}
+              onChangeText={setBackupPassword}
+              secureTextEntry
+              style={{ marginBottom: spacing.sm }}
+            />
+
+            {backupPassword ? (
+              <AppInput
+                label="Confirm Backup Password"
+                placeholder="Re-enter password"
+                value={confirmBackupPassword}
+                onChangeText={setConfirmBackupPassword}
+                secureTextEntry
+                style={{ marginBottom: spacing.sm }}
+              />
+            ) : null}
+
+            {backupError ? (
+              <AppText variant="caption" color={colors.error} style={{ marginBottom: spacing.sm }}>
+                {backupError}
+              </AppText>
+            ) : null}
+
+            <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
+              <AppButton
+                title="Cancel"
+                variant="outline"
+                onPress={() => setIsEncryptedBackupModalOpen(false)}
+                style={{ flex: 1, marginRight: spacing.sm }}
+              />
+              <AppButton
+                title="Save & Share"
+                variant="primary"
+                loading={isExportingBackup}
+                onPress={handlePerformEncryptedBackup}
+                style={{ flex: 2, marginLeft: spacing.sm }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Import Modal */}
       <Modal visible={isImportModalOpen} animationType="slide" transparent>
         <View
@@ -784,7 +1120,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           >
             <View style={styles.modalHeader}>
               <AppText variant="h3" weight="700">
-                Import JSON Backup
+                Import / Restore Backup
               </AppText>
               <TouchableOpacity onPress={() => setIsImportModalOpen(false)}>
                 <Feather name="x" size={22} color={colors.textSecondary} />
@@ -792,22 +1128,31 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
 
             <AppInput
-              label="Paste Backup JSON"
+              label="Paste Backup JSON / Archive"
               placeholder='{"transactions": [...], "accounts": [...]}'
               value={importJsonText}
               onChangeText={setImportJsonText}
               multiline
-              numberOfLines={6}
-              style={{ height: 120, textAlignVertical: 'top' }}
+              numberOfLines={5}
+              style={{ height: 110, textAlignVertical: 'top' }}
+            />
+
+            <AppInput
+              label="Archive Password (If Encrypted)"
+              placeholder="Leave blank for unencrypted backups"
+              value={importPassword}
+              onChangeText={setImportPassword}
+              secureTextEntry
+              style={{ marginTop: spacing.sm }}
             />
 
             {importError ? (
-              <AppText variant="caption" color={colors.error} style={{ marginBottom: spacing.sm }}>
+              <AppText variant="caption" color={colors.error} style={{ marginTop: spacing.xs, marginBottom: spacing.sm }}>
                 {importError}
               </AppText>
             ) : null}
 
-            <View style={{ flexDirection: 'row', marginTop: spacing.sm }}>
+            <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
               <AppButton
                 title="Cancel"
                 variant="outline"
@@ -850,6 +1195,19 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       <ManageCategoriesModal
         visible={isCategoriesModalOpen}
         onClose={() => setIsCategoriesModalOpen(false)}
+      />
+
+      {/* Data Integrity Tools Modal (F4.4) */}
+      <DataIntegrityModal
+        visible={isDataIntegrityModalOpen}
+        onClose={() => setIsDataIntegrityModalOpen(false)}
+        onOpenReconcile={() => setIsReconcileModalOpen(true)}
+      />
+
+      {/* Account Reconciliation Modal (F4.4) */}
+      <AccountReconciliationModal
+        visible={isReconcileModalOpen}
+        onClose={() => setIsReconcileModalOpen(false)}
       />
     </SafeAreaView>
   );
