@@ -6,6 +6,13 @@ This documentation suite provides complete end-to-end coverage of the applicatio
 
 ---
 
+## 🤖 All-In-One AI Context Document
+
+If you are uploading documentation to an **AI Coding Assistant** (Claude, ChatGPT, Cursor, Copilot, Gemini) to give it total project understanding in a single file:
+👉 **[POCKETWISE-MASTER-CONTEXT.md](file:///D:/Pocketwise/docs/POCKETWISE-MASTER-CONTEXT.md)**
+
+---
+
 ## 📚 Complete Documentation Index
 
 | Doc # | Document Title | Description | Primary Audience |
