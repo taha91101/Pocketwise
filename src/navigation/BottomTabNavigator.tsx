@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../hooks/useTheme';
+import { useTranslation } from '../hooks/useTranslation';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { TransactionsScreen } from '../screens/transactions/TransactionsScreen';
 import { BudgetsScreen } from '../screens/budgets/BudgetsScreen';
@@ -13,6 +14,7 @@ const Tab = createBottomTabNavigator();
 
 export const BottomTabNavigator: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   const tabHeight = 56 + Math.max(insets.bottom, 8);
@@ -42,40 +44,40 @@ export const BottomTabNavigator: React.FC = () => {
         name="Home"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Feather name="home" size={20} color={color} />,
+          tabBarLabel: t('nav_home'),
+          tabBarIcon: ({ color }) => <Feather name="home" size={20} color={color} />,
         }}
       />
       <Tab.Screen
         name="Transactions"
         component={TransactionsScreen}
         options={{
-          tabBarLabel: 'Transactions',
-          tabBarIcon: ({ color, size }) => <Feather name="list" size={20} color={color} />,
+          tabBarLabel: t('nav_transactions'),
+          tabBarIcon: ({ color }) => <Feather name="list" size={20} color={color} />,
         }}
       />
       <Tab.Screen
         name="Budgets"
         component={BudgetsScreen}
         options={{
-          tabBarLabel: 'Budgets',
-          tabBarIcon: ({ color, size }) => <Feather name="pie-chart" size={20} color={color} />,
+          tabBarLabel: t('nav_budgets'),
+          tabBarIcon: ({ color }) => <Feather name="pie-chart" size={20} color={color} />,
         }}
       />
       <Tab.Screen
         name="Savings"
         component={SavingsScreen}
         options={{
-          tabBarLabel: 'Savings',
-          tabBarIcon: ({ color, size }) => <Feather name="target" size={20} color={color} />,
+          tabBarLabel: t('nav_savings'),
+          tabBarIcon: ({ color }) => <Feather name="target" size={20} color={color} />,
         }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size }) => <Feather name="user" size={20} color={color} />,
+          tabBarLabel: t('nav_profile'),
+          tabBarIcon: ({ color }) => <Feather name="user" size={20} color={color} />,
         }}
       />
     </Tab.Navigator>

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
@@ -30,6 +31,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const AccountsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const accounts = useAppStore((state) => state.accounts);
@@ -136,10 +138,10 @@ export const AccountsScreen: React.FC = () => {
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <View>
           <AppText variant="h2" weight="800">
-            Accounts & Wallets
+            {t('accounts_title')}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Manage liquid balances & cards
+            {t('accounts_subtitle')}
           </AppText>
         </View>
 
@@ -205,7 +207,7 @@ export const AccountsScreen: React.FC = () => {
                 ]}
               >
                 <AppText variant="caption" color={colors.textSecondary}>
-                  ESTIMATED NET WORTH
+                  {t('estimated_net_worth')}
                 </AppText>
                 <AppText
                   variant="amountLarge"
@@ -213,25 +215,25 @@ export const AccountsScreen: React.FC = () => {
                   color={netWorth >= 0 ? colors.textPrimary : colors.error}
                   style={{ marginTop: spacing.xs }}
                 >
-                  {FinancialCalculationsService.formatCurrency(netWorth, currencySymbol)}
+                  {formatCurrency(netWorth, currencySymbol)}
                 </AppText>
 
                 <View style={[styles.netWorthBreakdown, { marginTop: spacing.md, paddingTop: spacing.md, borderTopColor: colors.borderLight }]}>
                   <View style={styles.netWorthCol}>
                     <AppText variant="caption" color={colors.textMuted}>
-                      Total Assets
+                      {t('total_assets')}
                     </AppText>
                     <AppText variant="subtitle2" weight="700" color={colors.success}>
-                      {FinancialCalculationsService.formatCurrency(totalAssets, currencySymbol)}
+                      {formatCurrency(totalAssets, currencySymbol)}
                     </AppText>
                   </View>
                   <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
                   <View style={styles.netWorthCol}>
                     <AppText variant="caption" color={colors.textMuted}>
-                      Total Liabilities
+                      {t('total_liabilities')}
                     </AppText>
                     <AppText variant="subtitle2" weight="700" color={totalLiabilities > 0 ? colors.error : colors.textPrimary}>
-                      {FinancialCalculationsService.formatCurrency(totalLiabilities, currencySymbol)}
+                      {formatCurrency(totalLiabilities, currencySymbol)}
                     </AppText>
                   </View>
                 </View>
@@ -249,7 +251,7 @@ export const AccountsScreen: React.FC = () => {
               </View>
 
               <AppText variant="subtitle1" weight="700" style={{ marginTop: spacing.xl, marginBottom: spacing.xs }}>
-                Your Accounts ({accounts.length})
+                {t('liquid_accounts')} ({accounts.length})
               </AppText>
             </View>
           );
@@ -492,10 +494,10 @@ export const AccountsScreen: React.FC = () => {
                     <View style={[styles.cardHeader, { marginTop: spacing.md, paddingTop: spacing.xs }]}>
                       <View>
                         <AppText variant="caption" color={colors.textMuted}>
-                          Outstanding Balance
+                          {t('outstanding_balance')}
                         </AppText>
                         <AppText variant="subtitle1" weight="800" color={isPaid ? colors.success : colors.error}>
-                          {FinancialCalculationsService.formatCurrency(lia.remainingAmount, currencySymbol)}
+                          {formatCurrency(lia.remainingAmount, currencySymbol)}
                         </AppText>
                       </View>
 
@@ -510,7 +512,7 @@ export const AccountsScreen: React.FC = () => {
                           }}
                         >
                           <AppText variant="caption" weight="700" color="#FFFFFF">
-                            Pay / Reduce
+                            {t('pay_reduce')}
                           </AppText>
                         </TouchableOpacity>
                       )}
@@ -524,9 +526,9 @@ export const AccountsScreen: React.FC = () => {
         ListEmptyComponent={() => (
           <EmptyState
             iconName="credit-card"
-            title="No accounts yet"
-            description="Add your bank account, cash wallet, or card to start tracking balances."
-            actionTitle="Add Account"
+            title={t('no_accounts_title')}
+            description={t('no_accounts_desc')}
+            actionTitle={t('add_account')}
             onActionPress={() => setIsAddAccountModalOpen(true)}
           />
         )}

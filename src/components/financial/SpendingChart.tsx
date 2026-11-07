@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { Transaction } from '../../types';
 import { AppText } from '../common/AppText';
-import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { useAppStore } from '../../store/useAppStore';
 import { Feather } from '@expo/vector-icons';
 
@@ -13,6 +13,7 @@ export interface SpendingChartProps {
 
 export const SpendingChart: React.FC<SpendingChartProps> = ({ transactions }) => {
   const { colors, radius, spacing, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('week');
 
@@ -94,10 +95,10 @@ export const SpendingChart: React.FC<SpendingChartProps> = ({ transactions }) =>
       <View style={styles.headerRow}>
         <View>
           <AppText variant="subtitle1" weight="700">
-            Spending Activity
+            {period === 'week' ? t('spending_last_7_days') : 'Spending Activity'}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Total {FinancialCalculationsService.formatCurrency(totalPeriodSpend, currencySymbol)}
+            Total {formatCurrency(totalPeriodSpend, currencySymbol)}
           </AppText>
         </View>
 

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { CategoryIcon } from '../../components/common/CategoryIcon';
@@ -23,6 +24,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const BudgetsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const budgets = useAppStore((state) => state.budgets);
   const transactions = useAppStore((state) => state.transactions);
   const savingsGoals = useAppStore((state) => state.savingsGoals);
@@ -62,10 +64,10 @@ export const BudgetsScreen: React.FC = () => {
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <View>
           <AppText variant="h2" weight="800">
-            Budgets
+            {t('budgets_title')}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Manage category limits & stay in control
+            {t('budgets_subtitle')}
           </AppText>
         </View>
 
@@ -119,7 +121,7 @@ export const BudgetsScreen: React.FC = () => {
                       style={{ marginRight: 8 }}
                     />
                     <AppText variant="subtitle2" weight="700">
-                      Zero-Based Budget
+                      {t('zero_based_title')}
                     </AppText>
                   </View>
                   <Badge
@@ -131,26 +133,26 @@ export const BudgetsScreen: React.FC = () => {
                 <View style={[styles.zeroBasedRow, { marginTop: spacing.sm }]}>
                   <View>
                     <AppText variant="caption" color={colors.textSecondary}>
-                      Monthly Income
+                      {t('monthly_income')}
                     </AppText>
                     <AppText variant="body2" weight="700">
-                      {FinancialCalculationsService.formatCurrency(zeroBased.monthlyIncome, currencySymbol)}
+                      {formatCurrency(zeroBased.monthlyIncome, currencySymbol)}
                     </AppText>
                   </View>
                   <View>
                     <AppText variant="caption" color={colors.textSecondary}>
-                      Assigned to Budgets
+                      Assigned
                     </AppText>
                     <AppText variant="body2" weight="700">
-                      {FinancialCalculationsService.formatCurrency(zeroBased.totalAssignedToBudgets, currencySymbol)}
+                      {formatCurrency(zeroBased.totalAssignedToBudgets, currencySymbol)}
                     </AppText>
                   </View>
                   <View>
                     <AppText variant="caption" color={colors.textSecondary}>
-                      Savings Target
+                      {t('savings_target')}
                     </AppText>
                     <AppText variant="body2" weight="700">
-                      {FinancialCalculationsService.formatCurrency(zeroBased.totalAssignedToGoals, currencySymbol)}
+                      {formatCurrency(zeroBased.totalAssignedToGoals, currencySymbol)}
                     </AppText>
                   </View>
                 </View>
@@ -172,10 +174,10 @@ export const BudgetsScreen: React.FC = () => {
               <View style={styles.cardTop}>
                 <View>
                   <AppText variant="caption" color={colors.textSecondary}>
-                    Total Monthly Budget
+                    {t('overall_budget')}
                   </AppText>
                   <AppText variant="h2" weight="800" style={{ marginTop: 2 }}>
-                    {FinancialCalculationsService.formatCurrency(totalBudgeted, currencySymbol)}
+                    {formatCurrency(totalBudgeted, currencySymbol)}
                   </AppText>
                 </View>
                 <Badge
@@ -193,18 +195,18 @@ export const BudgetsScreen: React.FC = () => {
               <View style={styles.summaryRow}>
                 <View>
                   <AppText variant="caption" color={colors.textMuted}>
-                    Total Spent
+                    {t('spent')}
                   </AppText>
                   <AppText variant="subtitle2" weight="700">
-                    {FinancialCalculationsService.formatCurrency(totalBudgetSpent, currencySymbol)}
+                    {formatCurrency(totalBudgetSpent, currencySymbol)}
                   </AppText>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <AppText variant="caption" color={colors.textMuted}>
-                    Remaining
+                    {t('remaining')}
                   </AppText>
                   <AppText variant="subtitle2" color={colors.primary} weight="700">
-                    {FinancialCalculationsService.formatCurrency(totalBudgetRemaining, currencySymbol)}
+                    {formatCurrency(totalBudgetRemaining, currencySymbol)}
                   </AppText>
                 </View>
               </View>
@@ -314,9 +316,9 @@ export const BudgetsScreen: React.FC = () => {
         ListEmptyComponent={() => (
           <EmptyState
             iconName="pie-chart"
-            title="No budgets configured"
-            description="Create category budgets to keep your expenditures in check."
-            actionTitle="Add Budget"
+            title={t('no_budgets_title')}
+            description={t('no_budgets_desc')}
+            actionTitle={t('create_budget')}
             onActionPress={() => setIsAddModalOpen(true)}
           />
         )}

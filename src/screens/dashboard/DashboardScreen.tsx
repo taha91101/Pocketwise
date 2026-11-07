@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { BalanceCard } from '../../components/financial/BalanceCard';
 import { QuickActions } from '../../components/financial/QuickActions';
@@ -27,10 +28,9 @@ import { WithdrawGoalFundsModal } from '../../components/modals/WithdrawGoalFund
 import { AppButton } from '../../components/common/AppButton';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAppStore } from '../../store/useAppStore';
-import { SavingsGoal, Transaction, TransactionType } from '../../types';
+import { SavingsGoal, TransactionType } from '../../types';
 import { Feather } from '@expo/vector-icons';
 import { NotificationService } from '../../services/notificationService';
-import { FinancialCalculationsService } from '../../services/financialCalculations';
 
 export interface DashboardScreenProps {
   navigation: any;
@@ -38,6 +38,7 @@ export interface DashboardScreenProps {
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const userName = useAppStore((state) => state.settings.userName);
   const transactions = useAppStore((state) => state.transactions);
   const savingsGoals = useAppStore((state) => state.savingsGoals);
@@ -79,10 +80,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       <View style={[styles.topHeader, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <View>
           <AppText variant="h2" weight="800">
-            Good day, {userName || 'Friend'} 👋
+            {t('good_day')}, {userName || 'Friend'} 👋
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Your financial overview
+            {t('financial_overview')}
           </AppText>
         </View>
 
@@ -146,31 +147,31 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
             ]}
           >
             <AppText variant="h2" weight="800">
-              Welcome 👋
+              {t('welcome')} 👋
             </AppText>
             <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: 4 }}>
-              Let's get your finances organized.
+              {t('welcome_sub')}
             </AppText>
 
             <View style={[styles.welcomeBalanceBox, { backgroundColor: colors.surfaceVariant, borderRadius: radius.lg, padding: spacing.md, marginVertical: spacing.md }]}>
               <AppText variant="caption" color={colors.textSecondary}>
-                Your balance
+                {t('available_balance')}
               </AppText>
               <AppText variant="amountLarge" weight="800" color={colors.textPrimary} style={{ marginTop: 2 }}>
-                {FinancialCalculationsService.formatCurrency(overview.availableBalance, settings.currencySymbol)}
+                {formatCurrency(overview.availableBalance, settings.currencySymbol)}
               </AppText>
             </View>
 
             <AppText variant="subtitle2" weight="700" color={colors.textPrimary}>
-              No transactions yet.
+              {t('no_transactions_yet')}
             </AppText>
             <AppText variant="body2" color={colors.textSecondary} style={{ marginTop: 4, marginBottom: spacing.lg }}>
-              Start tracking your money to see your financial overview here.
+              {t('welcome_start')}
             </AppText>
 
             <View style={styles.welcomeActions}>
               <AppButton
-                title="+ Add Expense"
+                title={t('add_expense')}
                 variant="outline"
                 size="md"
                 onPress={() => setModalType('expense')}
@@ -178,7 +179,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                 fullWidth
               />
               <AppButton
-                title="+ Add Income"
+                title={t('add_income')}
                 variant="primary"
                 size="md"
                 onPress={() => setModalType('income')}
@@ -186,7 +187,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                 fullWidth
               />
               <AppButton
-                title="Create Savings Goal"
+                title={t('create_savings_goal')}
                 variant="secondary"
                 size="md"
                 onPress={() => navigation.navigate('Savings')}
@@ -226,11 +227,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           <View style={{ marginTop: spacing.lg }}>
             <View style={styles.sectionHeader}>
               <AppText variant="subtitle1" weight="700">
-                Savings Target
+                {t('savings_target')}
               </AppText>
               <TouchableOpacity onPress={() => navigation.navigate('Savings')}>
                 <AppText variant="caption" color={colors.primary} weight="700">
-                  View All Goals
+                  {t('view_all_goals')}
                 </AppText>
               </TouchableOpacity>
             </View>
@@ -249,11 +250,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           <View style={{ marginTop: spacing.lg }}>
             <View style={styles.sectionHeader}>
               <AppText variant="subtitle1" weight="700">
-                Upcoming Bills
+                {t('upcoming_bills')}
               </AppText>
               <TouchableOpacity onPress={() => navigation.navigate('Recurring')}>
                 <AppText variant="caption" color={colors.primary} weight="700">
-                  Manage
+                  {t('manage')}
                 </AppText>
               </TouchableOpacity>
             </View>
@@ -272,7 +273,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         <View style={{ marginTop: spacing.lg }}>
           <View style={styles.sectionHeader}>
             <AppText variant="subtitle1" weight="700">
-              Financial Insights 💡
+              {t('financial_insights')} 💡
             </AppText>
             {insights.length > 0 && (
               <TouchableOpacity onPress={() => navigation.navigate('Reports')}>
@@ -322,11 +323,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         <View style={{ marginTop: spacing.lg }}>
           <View style={styles.sectionHeader}>
             <AppText variant="subtitle1" weight="700">
-              Recent Transactions
+              {t('recent_transactions')}
             </AppText>
             <TouchableOpacity onPress={() => navigation.navigate('Transactions')}>
               <AppText variant="caption" color={colors.primary} weight="700">
-                View All ({transactions.length})
+                {t('see_all')} ({transactions.length})
               </AppText>
             </TouchableOpacity>
           </View>

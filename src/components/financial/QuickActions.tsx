@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../common/AppText';
 import { Feather } from '@expo/vector-icons';
 
@@ -18,31 +19,36 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   onTransfer,
 }) => {
   const { colors, radius, spacing, shadows } = useTheme();
+  const { t } = useTranslation();
 
   const actions = [
     {
-      label: 'Expense',
+      id: 'expense',
+      label: t('expense'),
       icon: 'minus-circle' as const,
       color: colors.error,
       bgColor: colors.errorLight,
       onPress: onAddExpense,
     },
     {
-      label: 'Income',
+      id: 'income',
+      label: t('income'),
       icon: 'plus-circle' as const,
       color: colors.success,
       bgColor: colors.successLight,
       onPress: onAddIncome,
     },
     {
-      label: 'Saving',
+      id: 'saving',
+      label: t('saving'),
       icon: 'target' as const,
       color: colors.primary,
       bgColor: colors.primaryLight,
       onPress: onAddSaving,
     },
     {
-      label: 'Transfer',
+      id: 'transfer',
+      label: t('transfer'),
       icon: 'refresh-cw' as const,
       color: colors.info,
       bgColor: colors.infoLight,
@@ -65,7 +71,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
     >
       {actions.map((act) => (
         <TouchableOpacity
-          key={act.label}
+          key={act.id}
           activeOpacity={0.7}
           onPress={act.onPress}
           style={styles.actionBtn}
@@ -98,16 +104,13 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    width: '100%',
+    justifyContent: 'space-between',
     borderWidth: 1,
   },
   actionBtn: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 4,
-    paddingHorizontal: 8,
   },
   iconCircle: {
     width: 44,

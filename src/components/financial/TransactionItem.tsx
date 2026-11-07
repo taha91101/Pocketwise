@@ -2,10 +2,10 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { Transaction } from '../../types';
 import { AppText } from '../common/AppText';
 import { CategoryIcon } from '../common/CategoryIcon';
-import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { useAppStore } from '../../store/useAppStore';
 
 export interface TransactionItemProps {
@@ -15,6 +15,7 @@ export interface TransactionItemProps {
 
 export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onPress }) => {
   const { colors, spacing, radius } = useTheme();
+  const { t, language, formatCurrency } = useTranslation();
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const getAmountColor = () => {
@@ -50,17 +51,36 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, o
       const d = new Date(transaction.date);
       const today = new Date();
       if (d.toDateString() === today.toDateString()) {
-        return 'Today';
+        return t('today');
       }
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       if (d.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday';
+        return t('yesterday');
       }
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return d.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', { month: 'short', day: 'numeric' });
     } catch {
       return transaction.date;
     }
+  };
+
+  const getLocalizedCategory = (name: string) => {
+    const map: Record<string, string> = {
+      'Groceries': t('groceries'),
+      'Dining': t('dining'),
+      'Shopping': t('shopping'),
+      'Transport': t('transport'),
+      'Bills & Utilities': t('bills_utilities'),
+      'Entertainment': t('entertainment'),
+      'Health & Medical': t('health_medical'),
+      'Education': t('education'),
+      'Salary': t('salary'),
+      'Freelance': t('freelance'),
+      'Investments': t('investment'),
+      'Other Income': t('other_income'),
+      'Others': t('others'),
+    };
+    return map[name] || name;
   };
 
   return (
@@ -140,10 +160,10 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, o
       <View style={styles.rightCol}>
         <AppText variant="amountSmall" color={getAmountColor()} weight="700">
           {getAmountPrefix()}
-          {FinancialCalculationsService.formatCurrency(transaction.amount, currencySymbol)}
+          {formatCurrency(transaction.amount, currencySymbol)}
         </AppText>
         <AppText variant="caption" color={colors.textMuted} align="right" style={{ marginTop: 2 }}>
-          {transaction.categoryName}
+          {getLocalizedCategory(transaction.categoryName)}
         </AppText>
       </View>
     </TouchableOpacity>

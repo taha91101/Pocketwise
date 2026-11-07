@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { SavingsGoalCard } from '../../components/financial/SavingsGoalCard';
 import { FinancialInsightCard } from '../../components/financial/FinancialInsightCard';
@@ -22,6 +23,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const SavingsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const savingsGoals = useAppStore((state) => state.savingsGoals);
   const insights = useAppStore((state) => state.insights);
   const deleteSavingsGoal = useAppStore((state) => state.deleteSavingsGoal);
@@ -52,10 +54,10 @@ export const SavingsScreen: React.FC = () => {
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <View>
           <AppText variant="h2" weight="800">
-            Savings & Goals
+            {t('savings_title')}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Build your wealth & emergency reserve
+            {t('savings_subtitle')}
           </AppText>
         </View>
 
@@ -95,7 +97,7 @@ export const SavingsScreen: React.FC = () => {
               >
                 <View style={styles.topInfo}>
                   <AppText variant="caption" color={colors.textSecondary}>
-                    Total Accumulated Savings
+                    {t('total_accumulated_savings')}
                   </AppText>
                   <View style={styles.growthBadge}>
                     <Feather name="target" size={12} color={colors.primary} style={{ marginRight: 4 }} />
@@ -106,7 +108,7 @@ export const SavingsScreen: React.FC = () => {
                 </View>
 
                 <AppText variant="amountLarge" weight="800" style={{ marginTop: spacing.xs, marginBottom: spacing.sm }}>
-                  {FinancialCalculationsService.formatCurrency(totalSaved, currencySymbol)}
+                  {formatCurrency(totalSaved, currencySymbol)}
                 </AppText>
 
                 <View style={[styles.cardFooter, { borderTopColor: colors.borderLight, paddingTop: spacing.md }]}>
@@ -153,9 +155,9 @@ export const SavingsScreen: React.FC = () => {
         ListEmptyComponent={() => (
           <EmptyState
             iconName="target"
-            title="No savings goals yet"
-            description="Create your first goal like an Emergency Fund or Vacation plan."
-            actionTitle="Create Goal"
+            title={t('no_goals_title')}
+            description={t('no_goals_desc')}
+            actionTitle={t('add_goal')}
             onActionPress={() => setIsAddGoalModalOpen(true)}
           />
         )}

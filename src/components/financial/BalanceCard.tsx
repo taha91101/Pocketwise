@@ -1,13 +1,14 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../common/AppText';
-import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { useAppStore } from '../../store/useAppStore';
 import { Feather } from '@expo/vector-icons';
 
 export const BalanceCard: React.FC = () => {
-  const { colors, radius, spacing, shadows, isDark } = useTheme();
+  const { radius, spacing, shadows, isDark } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const overview = useAppStore((state) => state.overview);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
   const transactions = useAppStore((state) => state.transactions);
@@ -31,7 +32,7 @@ export const BalanceCard: React.FC = () => {
         <View style={styles.badgeLabel}>
           <Feather name="shield" size={14} color="#A7F3D0" style={{ marginRight: 6 }} />
           <AppText variant="caption" color="#D1FAE5" weight="600">
-            Available Balance
+            {t('available_balance')}
           </AppText>
         </View>
         {hasHistory ? (
@@ -48,7 +49,7 @@ export const BalanceCard: React.FC = () => {
               weight="700"
             >
               {isPositiveGrowth ? '+' : ''}
-              {overview.monthOverMonthGrowth}% this month
+              {overview.monthOverMonthGrowth}% {t('this_month')}
             </AppText>
           </View>
         ) : null}
@@ -59,24 +60,24 @@ export const BalanceCard: React.FC = () => {
         color="#FFFFFF"
         style={{ marginTop: spacing.md, marginBottom: spacing.xs }}
       >
-        {FinancialCalculationsService.formatCurrency(overview.availableBalance, currencySymbol)}
+        {formatCurrency(overview.availableBalance, currencySymbol)}
       </AppText>
 
       <View style={[styles.bottomRow, { borderTopColor: 'rgba(255, 255, 255, 0.15)', paddingTop: spacing.md, marginTop: spacing.sm }]}>
         <View style={styles.miniStat}>
           <AppText variant="caption" color="rgba(255, 255, 255, 0.7)">
-            Savings Rate
+            {t('savings_rate')}
           </AppText>
           <AppText variant="subtitle2" color="#FFFFFF" weight="700">
-            {overview.netSavingsRate}% of income
+            {overview.netSavingsRate}% {t('of_income')}
           </AppText>
         </View>
         <View style={[styles.miniStat, { alignItems: 'flex-end' }]}>
           <AppText variant="caption" color="rgba(255, 255, 255, 0.7)">
-            Total Stashed
+            {t('total_stashed')}
           </AppText>
           <AppText variant="subtitle2" color="#FFFFFF" weight="700">
-            {FinancialCalculationsService.formatCurrency(overview.totalSavings, currencySymbol)}
+            {formatCurrency(overview.totalSavings, currencySymbol)}
           </AppText>
         </View>
       </View>
@@ -101,15 +102,17 @@ const styles = StyleSheet.create({
   chipGrowth: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 12,
   },
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 1,
   },
-  miniStat: {},
+  miniStat: {
+    flex: 1,
+  },
 });

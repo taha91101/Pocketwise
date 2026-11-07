@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../common/AppText';
 import { useAppStore } from '../../store/useAppStore';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
@@ -8,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const SafeToSpendCard: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const forecast = useAppStore((state) => state.forecast);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -49,7 +51,7 @@ export const SafeToSpendCard: React.FC = () => {
         <View style={styles.badgeRow}>
           <View style={[styles.pulseDot, { backgroundColor: statusColor }]} />
           <AppText variant="caption" weight="700" color={colors.textSecondary}>
-            CASH-FLOW FORECAST
+            {t('cash_flow_forecast')}
           </AppText>
         </View>
         <TouchableOpacity
@@ -57,7 +59,7 @@ export const SafeToSpendCard: React.FC = () => {
           style={[styles.toggleBtn, { backgroundColor: colors.surfaceVariant, borderRadius: radius.sm }]}
         >
           <AppText variant="caption" weight="600" color={colors.textSecondary}>
-            {isExpanded ? 'Hide Details' : 'Details'}
+            {isExpanded ? t('hide_details') : t('details')}
           </AppText>
           <Feather
             name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -71,7 +73,7 @@ export const SafeToSpendCard: React.FC = () => {
       {/* Main Metric: Safe To Spend Today */}
       <View style={{ marginTop: spacing.sm }}>
         <AppText variant="caption" color={colors.textSecondary}>
-          Safe-to-Spend Today
+          {t('safe_to_spend_today')}
         </AppText>
         <View style={styles.amountRow}>
           <AppText
@@ -79,10 +81,10 @@ export const SafeToSpendCard: React.FC = () => {
             weight="800"
             color={isSafePositive ? colors.textPrimary : colors.error}
           >
-            {FinancialCalculationsService.formatCurrency(safeToSpendToday, currencySymbol)}
+            {formatCurrency(safeToSpendToday, currencySymbol)}
           </AppText>
           <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginLeft: 6, marginBottom: 4 }}>
-            / day
+            {t('per_day')}
           </AppText>
         </View>
       </View>

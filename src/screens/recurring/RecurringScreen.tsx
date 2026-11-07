@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { UpcomingPaymentCard } from '../../components/financial/UpcomingPaymentCard';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -20,6 +21,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const RecurringScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t } = useTranslation();
   const recurringPayments = useAppStore((state) => state.recurringPayments);
   const transactions = useAppStore((state) => state.transactions);
   const accounts = useAppStore((state) => state.accounts);
@@ -91,10 +93,10 @@ export const RecurringScreen: React.FC = () => {
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <View>
           <AppText variant="h2" weight="800">
-            Recurring Payments
+            {t('recurring_title')}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-            Manage subscriptions, rent, and utility bills
+            {t('recurring_subtitle')}
           </AppText>
         </View>
 
@@ -333,9 +335,9 @@ export const RecurringScreen: React.FC = () => {
         ListEmptyComponent={() => (
           <EmptyState
             iconName="repeat"
-            title="No recurring payments"
-            description="Track regular bills like internet, rent, or Netflix."
-            actionTitle="Add Recurring Bill"
+            title={t('no_recurring_title')}
+            description={t('no_recurring_desc')}
+            actionTitle={t('add_recurring')}
             onActionPress={() => setIsAddModalOpen(true)}
           />
         )}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../common/AppText';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { ProgressBar } from '../common/ProgressBar';
@@ -13,6 +14,7 @@ export interface CategoryBreakdownProps {
 
 export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ maxItems = 5 }) => {
   const { colors, radius, spacing, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const transactions = useAppStore((state) => state.transactions);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
@@ -21,6 +23,25 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ maxItems =
   if (breakdowns.length === 0) {
     return null;
   }
+
+  const getLocalizedCategory = (name: string) => {
+    const map: Record<string, string> = {
+      'Groceries': t('groceries'),
+      'Dining': t('dining'),
+      'Shopping': t('shopping'),
+      'Transport': t('transport'),
+      'Bills & Utilities': t('bills_utilities'),
+      'Entertainment': t('entertainment'),
+      'Health & Medical': t('health_medical'),
+      'Education': t('education'),
+      'Salary': t('salary'),
+      'Freelance': t('freelance'),
+      'Investments': t('investment'),
+      'Other Income': t('other_income'),
+      'Others': t('others'),
+    };
+    return map[name] || name;
+  };
 
   return (
     <View
@@ -37,7 +58,7 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ maxItems =
     >
       <View style={styles.header}>
         <AppText variant="subtitle1" weight="700">
-          Spending by Category
+          {t('category_breakdown')}
         </AppText>
         <AppText variant="caption" color={colors.textSecondary}>
           Top categories
@@ -57,12 +78,12 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ maxItems =
                   containerSize={32}
                 />
                 <AppText variant="body2" weight="600" style={{ marginLeft: spacing.sm }}>
-                  {cat.categoryName}
+                  {getLocalizedCategory(cat.categoryName)}
                 </AppText>
               </View>
               <View style={styles.rightInfo}>
                 <AppText variant="body2" weight="700">
-                  {FinancialCalculationsService.formatCurrency(cat.amount, currencySymbol)}
+                  {formatCurrency(cat.amount, currencySymbol)}
                 </AppText>
                 <AppText variant="caption" color={colors.textMuted} style={{ marginLeft: 6 }}>
                   ({cat.percentage}%)

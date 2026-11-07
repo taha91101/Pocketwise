@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
@@ -29,6 +30,7 @@ import { PrivacyPolicyModal } from '../../components/modals/PrivacyPolicyModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, spacing, radius, shadows, isDark } = useTheme();
+  const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const settings = useAppStore((state) => state.settings);
@@ -252,7 +254,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       {/* Header */}
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <AppText variant="h2" weight="800">
-          Settings & Profile
+          {t('profile_title')}
         </AppText>
         <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
           Preferences, security, and data backup
@@ -306,7 +308,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
         {/* Section: Appearance */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.xl, marginBottom: spacing.xs }}>
-          APPEARANCE & THEME
+          {t('preferences')}
         </AppText>
         <View
           style={[
@@ -561,7 +563,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
         {/* Section: App Security & Lock */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
-          APP SECURITY & PRIVACY
+          {t('app_security')}
         </AppText>
         <View
           style={[
@@ -692,7 +694,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
         {/* Section: Storage & Database Engine (Phase 4) */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
-          STORAGE & DATABASE ENGINE
+          {t('storage_engine')}
         </AppText>
         <View
           style={[
@@ -786,7 +788,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
         {/* Section: Data Backup & Integrity */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
-          DATA & PRIVACY
+          {t('data_management')}
         </AppText>
         <View
           style={[

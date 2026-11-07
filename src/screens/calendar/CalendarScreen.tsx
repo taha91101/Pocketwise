@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { TransactionItem } from '../../components/financial/TransactionItem';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -16,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const CalendarScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t } = useTranslation();
   const transactions = useAppStore((state) => state.transactions);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
@@ -82,7 +84,7 @@ export const CalendarScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       {/* Header */}
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <AppText variant="h2" weight="800">
-          Financial Calendar
+          {t('nav_calendar')}
         </AppText>
         <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
           Daily transactions & activity map

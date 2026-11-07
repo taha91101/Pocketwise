@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { AppInput } from '../../components/common/AppInput';
 import { TransactionItem } from '../../components/financial/TransactionItem';
@@ -35,6 +36,7 @@ const DATE_PRESETS: { id: DateRangePreset; label: string }[] = [
 
 export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigation }) => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t } = useTranslation();
   const transactions = useAppStore((state) => state.transactions);
   const accounts = useAppStore((state) => state.accounts);
   const categories = useAppStore((state) => state.categories);
@@ -200,7 +202,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         <View style={styles.headerTop}>
           <View>
             <AppText variant="h2" weight="800">
-              Transactions
+              {t('transactions_title')}
             </AppText>
             <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
               {filteredTransactions.length} of {transactions.length} records found
@@ -268,7 +270,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         {/* Search Input */}
         <View style={{ marginTop: spacing.md }}>
           <AppInput
-            placeholder="Search description, category, or notes..."
+            placeholder={t('search_placeholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}
             iconName="search"
@@ -285,6 +287,13 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         >
           {DATE_PRESETS.map((preset) => {
             const isSelected = dateRange === preset.id;
+            const labelMap: Record<DateRangePreset, string> = {
+              all: t('all_time'),
+              today: t('today'),
+              this_week: t('this_week'),
+              this_month: t('this_month'),
+              last_month: t('last_month'),
+            };
             return (
               <TouchableOpacity
                 key={preset.id}
@@ -305,7 +314,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
                   weight={isSelected ? '700' : '500'}
                   color={isSelected ? colors.primary : colors.textSecondary}
                 >
-                  {preset.label}
+                  {labelMap[preset.id] || preset.label}
                 </AppText>
               </TouchableOpacity>
             );
@@ -327,12 +336,12 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
             }}
           >
             <AppText variant="caption" color={colors.primary} weight="600">
-              {activeFilterCount} active filter{activeFilterCount > 1 ? 's' : ''} applied
+              {activeFilterCount} {activeFilterCount > 1 ? t('active_filters_applied') : t('active_filter_applied')}
             </AppText>
             <TouchableOpacity onPress={resetFilters} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Feather name="x-circle" size={13} color={colors.primary} style={{ marginRight: 4 }} />
               <AppText variant="caption" color={colors.primary} weight="700">
-                Reset All
+                {t('reset_all')}
               </AppText>
             </TouchableOpacity>
           </View>
@@ -344,12 +353,12 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
             const isSelected = activeTab === tab;
             const label =
               tab === 'all'
-                ? 'All'
+                ? t('all')
                 : tab === 'expense'
-                ? 'Expenses'
+                ? t('expenses')
                 : tab === 'income'
-                ? 'Income'
-                : 'Savings';
+                ? t('income')
+                : t('saving');
 
             return (
               <TouchableOpacity

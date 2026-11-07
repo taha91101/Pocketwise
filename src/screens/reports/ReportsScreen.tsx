@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../../components/common/AppText';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { CategoryBreakdown } from '../../components/financial/CategoryBreakdown';
@@ -19,6 +20,7 @@ type PeriodFilter = '7d' | '30d' | '3m' | '6m' | '1y';
 
 export const ReportsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t } = useTranslation();
   const transactions = useAppStore((state) => state.transactions);
   const accounts = useAppStore((state) => state.accounts);
   const budgets = useAppStore((state) => state.budgets);
@@ -77,10 +79,10 @@ export const ReportsScreen: React.FC = () => {
       {/* Top Header */}
       <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
         <AppText variant="h2" weight="800">
-          Financial Reports
+          {t('reports_title')}
         </AppText>
         <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 2 }}>
-          Deep-dive analysis & cash flow statements
+          {t('reports_subtitle')}
         </AppText>
 
         {/* Period filter buttons */}

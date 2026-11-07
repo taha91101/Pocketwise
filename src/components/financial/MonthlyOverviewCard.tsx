@@ -1,33 +1,37 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useTranslation } from '../../hooks/useTranslation';
 import { AppText } from '../common/AppText';
-import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { useAppStore } from '../../store/useAppStore';
 import { Feather } from '@expo/vector-icons';
 
 export const MonthlyOverviewCard: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
+  const { t, formatCurrency } = useTranslation();
   const overview = useAppStore((state) => state.overview);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const stats = [
     {
-      title: 'Income',
+      id: 'income',
+      title: t('income'),
       amount: overview.totalIncome,
       icon: 'arrow-down-left' as const,
       color: colors.success,
       bgColor: colors.successLight,
     },
     {
-      title: 'Expenses',
+      id: 'expenses',
+      title: t('expenses'),
       amount: overview.totalExpenses,
       icon: 'arrow-up-right' as const,
       color: colors.error,
       bgColor: colors.errorLight,
     },
     {
-      title: 'Saved',
+      id: 'saved',
+      title: t('saved'),
       amount: overview.totalSavings,
       icon: 'target' as const,
       color: colors.primary,
@@ -39,7 +43,7 @@ export const MonthlyOverviewCard: React.FC = () => {
     <View style={styles.container}>
       {stats.map((stat, idx) => (
         <View
-          key={stat.title}
+          key={stat.id}
           style={[
             styles.card,
             {
@@ -76,7 +80,7 @@ export const MonthlyOverviewCard: React.FC = () => {
             style={{ marginTop: spacing.sm }}
             numberOfLines={1}
           >
-            {FinancialCalculationsService.formatCurrency(stat.amount, currencySymbol)}
+            {formatCurrency(stat.amount, currencySymbol)}
           </AppText>
         </View>
       ))}
@@ -100,8 +104,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   iconWrap: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
