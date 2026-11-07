@@ -21,6 +21,14 @@ export const DEFAULT_SUPPORTED_APPS: SupportedPaymentApp[] = [
   { packageName: 'com.axis.mobile', displayName: 'Axis Mobile', isEnabled: true },
   { packageName: 'com.kotak.mb', displayName: 'Kotak Bank', isEnabled: true },
   { packageName: 'com.samsung.android.spay', displayName: 'Samsung Wallet', isEnabled: true },
+  { packageName: 'com.naviapps', displayName: 'Navi UPI', isEnabled: true },
+  { packageName: 'indwin.c3.sharee', displayName: 'Slice', isEnabled: true },
+  { packageName: 'com.mobikwik_new', displayName: 'MobiKwik', isEnabled: true },
+  { packageName: 'com.freecharge.android', displayName: 'Freecharge', isEnabled: true },
+  { packageName: 'money.jupiter', displayName: 'Jupiter', isEnabled: true },
+  { packageName: 'co.fipay', displayName: 'Fi Money', isEnabled: true },
+  { packageName: 'com.idfcfirstbank.optimus', displayName: 'IDFC FIRST Bank', isEnabled: true },
+  { packageName: 'com.yesbank', displayName: 'YES Bank', isEnabled: true },
 ];
 
 export class UPIDetectionService {
@@ -243,7 +251,8 @@ export class UPIDetectionService {
     detected: DetectedTransaction,
     categories: any[],
     accounts: any[],
-    edits?: Partial<Transaction>
+    edits?: Partial<Transaction>,
+    accountMappings?: Record<string, string>
   ): Omit<Transaction, 'id' | 'createdAt'> {
     // 1. Resolve Category
     const category =
@@ -252,9 +261,16 @@ export class UPIDetectionService {
       categories.find((c) => c.id === 'cat-other-exp') ||
       categories[0];
 
-    // 2. Resolve Account (Prefer bank or wallet account, or first account)
+    // 2. Resolve Account (Check accountMappings first, then edits, then bank/wallet, then first account)
+    let selectedAccountId = edits?.accountId;
+    if (!selectedAccountId && accountMappings) {
+      selectedAccountId =
+        accountMappings[detected.paymentProvider] ||
+        accountMappings[detected.sourcePackage];
+    }
+
     const primaryAccount =
-      accounts.find((a) => a.id === edits?.accountId) ||
+      accounts.find((a) => a.id === selectedAccountId) ||
       accounts.find((a) => a.type === 'bank') ||
       accounts.find((a) => a.type === 'wallet') ||
       accounts[0] || {
@@ -277,6 +293,7 @@ export class UPIDetectionService {
       categoryName: category.name,
       categoryIcon: category.icon,
       categoryColor: category.color,
+      splits: edits?.splits || detected.splits,
       date: edits?.date || dateStr,
       time: edits?.time || timeStr,
       accountId: primaryAccount.id,

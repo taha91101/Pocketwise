@@ -97,6 +97,24 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, o
               style={{ marginLeft: 6 }}
             />
           ) : null}
+          {transaction.splits && transaction.splits.length > 0 ? (
+            <View
+              style={{
+                marginLeft: 6,
+                backgroundColor: `${colors.primary}18`,
+                paddingHorizontal: 5,
+                paddingVertical: 1,
+                borderRadius: 4,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <Feather name="scissors" size={10} color={colors.primary} />
+              <AppText variant="caption" color={colors.primary} weight="800" style={{ fontSize: 10, marginLeft: 2 }}>
+                Split ({transaction.splits.length})
+              </AppText>
+            </View>
+          ) : null}
           {transaction.isAutomaticallyDetected && (
             <View
               style={{

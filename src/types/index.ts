@@ -1,5 +1,15 @@
 export type TransactionType = 'expense' | 'income' | 'saving' | 'transfer';
 
+export interface TransactionSplit {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  categoryIcon: string;
+  categoryColor: string;
+  amount: number;
+  notes?: string;
+}
+
 export interface Transaction {
   id: string;
   title: string;
@@ -9,6 +19,7 @@ export interface Transaction {
   categoryName: string;
   categoryIcon: string;
   categoryColor: string;
+  splits?: TransactionSplit[];
   date: string; // ISO date string (YYYY-MM-DD or full ISO)
   time?: string; // HH:MM
   accountId: string;
@@ -55,6 +66,14 @@ export interface DetectedTransaction {
   rawTitleSnippet?: string;
   rawTextSnippet?: string;
   notes?: string;
+  availableBalance?: number;
+  splits?: TransactionSplit[];
+  matchedEntity?: {
+    type: 'recurring' | 'transaction' | 'goal';
+    id: string;
+    name: string;
+    amount: number;
+  };
 }
 
 export interface SupportedPaymentApp {
@@ -115,6 +134,7 @@ export interface RecurringPayment {
   isActive: boolean;
   reminderDaysBefore: number;
   autoRecord?: boolean;
+  lastPaidDate?: string;
   createdAt: string;
 }
 
@@ -159,8 +179,38 @@ export interface UserSettings {
   biometricEnabled?: boolean;
   lockTimeout?: 'immediate' | '1min' | '5min';
   pinCode?: string;
+  providerAccountMappings?: Record<string, string>; // e.g. { 'Google Pay': 'acc-1', 'HDFC Bank': 'acc-1' }
   hasCompletedOnboarding: boolean;
   hasCompletedWalkthrough: boolean;
+}
+
+export interface LearnedMerchantRule {
+  id: string;
+  merchantPattern: string; // Cleaned merchant name pattern
+  categoryId: string;
+  categoryName: string;
+  categoryIcon?: string;
+  categoryColor?: string;
+  createdAt: string;
+}
+
+export interface DetectionDiagnosticEvent {
+  id: string;
+  timestamp: number;
+  packageName: string;
+  titleSnippet: string;
+  textSnippet: string;
+  outcome:
+    | 'DETECTED'
+    | 'DROPPED_FAILURE'
+    | 'DROPPED_REQUEST'
+    | 'DROPPED_NOISE'
+    | 'DROPPED_OTP'
+    | 'DROPPED_DUPLICATE'
+    | 'DROPPED_UNSUPPORTED';
+  reason: string;
+  parsedAmount?: number;
+  parsedMerchant?: string;
 }
 
 export interface FinancialInsight {

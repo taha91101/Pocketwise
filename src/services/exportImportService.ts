@@ -1,4 +1,4 @@
-import { Account, Budget, Category, RecurringPayment, SavingsGoal, Transaction, UserSettings } from '../types';
+import { Account, Budget, Category, LearnedMerchantRule, RecurringPayment, SavingsGoal, Transaction, UserSettings } from '../types';
 
 export interface AppExportData {
   version: string;
@@ -10,6 +10,7 @@ export interface AppExportData {
   recurringPayments: RecurringPayment[];
   categories?: Category[];
   settings?: UserSettings;
+  learnedMerchantRules?: LearnedMerchantRule[];
 }
 
 export class ExportImportService {

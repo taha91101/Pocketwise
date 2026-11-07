@@ -12,6 +12,7 @@ import { RecurringScreen } from '../screens/recurring/RecurringScreen';
 import { CalendarScreen } from '../screens/calendar/CalendarScreen';
 import { AccountsScreen } from '../screens/accounts/AccountsScreen';
 import { AutomaticDetectionSettingsScreen } from '../screens/settings/AutomaticDetectionSettingsScreen';
+import { DetectionDiagnosticsScreen } from '../screens/settings/DetectionDiagnosticsScreen';
 import { WalkthroughModal } from '../components/modals/WalkthroughModal';
 import { PinLockScreen } from '../screens/security/PinLockScreen';
 
@@ -93,6 +94,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="Calendar" component={CalendarScreen} />
             <Stack.Screen name="Accounts" component={AccountsScreen} />
             <Stack.Screen name="AutomaticDetectionSettings" component={AutomaticDetectionSettingsScreen} />
+            <Stack.Screen name="DetectionDiagnostics" component={DetectionDiagnosticsScreen} />
           </>
         )}
       </Stack.Navigator>

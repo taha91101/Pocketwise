@@ -16,6 +16,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { UPIDetectionService, DEFAULT_SUPPORTED_APPS } from '../../services/upiDetectionService';
 import { Feather } from '@expo/vector-icons';
 import { SupportedPaymentApp } from '../../types';
+import { ManageLearnedRulesModal } from '../../components/modals/ManageLearnedRulesModal';
 
 export interface AutomaticDetectionSettingsScreenProps {
   navigation: any;
@@ -28,6 +29,9 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
 
   const settings = useAppStore((state) => state.settings);
   const updateSettings = useAppStore((state) => state.updateSettings);
+  const accounts = useAppStore((state) => state.accounts);
+  const learnedRules = useAppStore((state) => state.learnedMerchantRules);
+  const diagnostics = useAppStore((state) => state.detectionDiagnostics);
   const isNotificationAccessGranted = useAppStore((state) => state.isNotificationAccessGranted);
   const checkNotificationAccessStatus = useAppStore((state) => state.checkNotificationAccessStatus);
   const processIncomingDetectedTransaction = useAppStore(
@@ -37,6 +41,18 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
   const [supportedApps, setSupportedApps] = useState<SupportedPaymentApp[]>(DEFAULT_SUPPORTED_APPS);
   const [isSimulating, setIsSimulating] = useState(false);
   const [showOemGuide, setShowOemGuide] = useState(false);
+  const [isLearnedRulesVisible, setIsLearnedRulesVisible] = useState(false);
+  const [selectedOemBrand, setSelectedOemBrand] = useState<'xiaomi' | 'samsung' | 'oppo' | 'vivo' | 'oneplus'>('xiaomi');
+
+  const providerAccountMappings = settings.providerAccountMappings || {};
+
+  const handleSetAccountMapping = async (provider: string, accountId: string) => {
+    const updated = {
+      ...providerAccountMappings,
+      [provider]: accountId,
+    };
+    await updateSettings({ providerAccountMappings: updated });
+  };
 
   const notificationsSettings = settings.notifications;
   const isDetectionEnabled = notificationsSettings.automaticExpenseDetection !== false;
@@ -354,6 +370,185 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
           </View>
         </View>
 
+        {/* Intelligence & Diagnostics Log (F2.1 & F2.2) */}
+        <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
+          INTELLIGENCE & DIAGNOSTICS
+        </AppText>
+        <View
+          style={[
+            styles.settingGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              padding: spacing.md,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          {/* Learned Merchant Rules */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => setIsLearnedRulesVisible(true)}
+            style={styles.menuRow}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View
+                style={[
+                  styles.iconWrapSm,
+                  { backgroundColor: `${colors.primary}15`, borderRadius: radius.md },
+                ]}
+              >
+                <Feather name="book-open" size={16} color={colors.primary} />
+              </View>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <AppText variant="subtitle2" weight="600">
+                  Learned Merchant Rules
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  Automatic category overrides from your corrections
+                </AppText>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View
+                style={[
+                  styles.countBadge,
+                  { backgroundColor: colors.surfaceVariant, borderRadius: radius.full },
+                ]}
+              >
+                <AppText variant="caption" weight="700" color={colors.primary}>
+                  {learnedRules.length} rules
+                </AppText>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          {/* Diagnostics Log */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('DetectionDiagnostics')}
+            style={styles.menuRow}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View
+                style={[
+                  styles.iconWrapSm,
+                  { backgroundColor: `${colors.info || '#2563EB'}15`, borderRadius: radius.md },
+                ]}
+              >
+                <Feather name="activity" size={16} color={colors.info || '#2563EB'} />
+              </View>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <AppText variant="subtitle2" weight="600">
+                  Detection Diagnostics Log
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  Inspect raw notifications and parser filter events
+                </AppText>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View
+                style={[
+                  styles.countBadge,
+                  { backgroundColor: colors.surfaceVariant, borderRadius: radius.full },
+                ]}
+              >
+                <AppText variant="caption" weight="700" color={colors.textSecondary}>
+                  {diagnostics.length} logs
+                </AppText>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Default Account Mappings (F2.4) */}
+        <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
+          DEFAULT ACCOUNT MAPPINGS
+        </AppText>
+        <View
+          style={[
+            styles.settingGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xl,
+              padding: spacing.md,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+            Choose which account payments from each provider are debited from by default:
+          </AppText>
+
+          {['Google Pay', 'PhonePe', 'Paytm', 'CRED', 'Bank UPI'].map((provider, idx, arr) => {
+            const mappedAccountId = providerAccountMappings[provider];
+            const currentAccount =
+              accounts.find((a) => a.id === mappedAccountId) ||
+              accounts.find((a) => a.type === 'bank') ||
+              accounts[0];
+
+            const handleCycleAccount = () => {
+              if (accounts.length <= 1) return;
+              const currentIndex = accounts.findIndex((a) => a.id === currentAccount?.id);
+              const nextIndex = (currentIndex + 1) % accounts.length;
+              const nextAccount = accounts[nextIndex];
+              if (nextAccount) {
+                handleSetAccountMapping(provider, nextAccount.id);
+              }
+            };
+
+            return (
+              <React.Fragment key={provider}>
+                <View style={styles.mappingRow}>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="subtitle2" weight="600">
+                      {provider}
+                    </AppText>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleCycleAccount}
+                    style={[
+                      styles.accountPickerPill,
+                      {
+                        backgroundColor: currentAccount ? `${currentAccount.color || colors.primary}18` : colors.surfaceVariant,
+                        borderColor: currentAccount?.color || colors.primary,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={currentAccount?.type === 'wallet' ? 'credit-card' : 'dollar-sign'}
+                      size={12}
+                      color={currentAccount?.color || colors.primary}
+                    />
+                    <AppText
+                      variant="caption"
+                      weight="700"
+                      color={currentAccount?.color || colors.primary}
+                      style={{ marginHorizontal: 6 }}
+                    >
+                      {currentAccount?.name || 'Primary Bank'}
+                    </AppText>
+                    {accounts.length > 1 && (
+                      <Feather name="refresh-cw" size={10} color={colors.textMuted} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {idx < arr.length - 1 && (
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </View>
+
         {/* Supported Apps List */}
         <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginTop: spacing.lg, marginBottom: spacing.xs }}>
           SUPPORTED PAYMENT APPS
@@ -397,7 +592,7 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
           ))}
         </View>
 
-        {/* Troubleshooting / OEM Restrictions */}
+        {/* Troubleshooting / OEM Restrictions (F2.1) */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setShowOemGuide(!showOemGuide)}
@@ -415,7 +610,7 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
           <View style={styles.cardHeaderRow}>
             <Feather name="info" size={18} color={colors.primary} />
             <AppText variant="subtitle2" weight="700" style={{ marginLeft: 8, flex: 1 }}>
-              Background Reliability & OEM Tips
+              Background Reliability & OEM Guide
             </AppText>
             <Feather
               name={showOemGuide ? 'chevron-up' : 'chevron-down'}
@@ -427,13 +622,97 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
           {showOemGuide && (
             <View style={{ marginTop: spacing.sm }}>
               <AppText variant="caption" color={colors.textSecondary} style={{ lineHeight: 18 }}>
-                Android phone manufacturers (Xiaomi/Redmi, Vivo, Oppo, Samsung) aggressively terminate background services. To ensure 100% reliable detection:
+                Indian smartphone vendors terminate background notification services to conserve battery. Select your device brand for exact setup instructions:
               </AppText>
-              <AppText variant="caption" color={colors.textPrimary} style={{ marginTop: 6, lineHeight: 18 }}>
-                • Disable "Battery Saver / Battery Optimization" for PocketWise in Android Settings.{'\n'}
-                • Enable "Autostart" or "Background App Activity" in your phone's security manager.{'\n'}
-                • Lock PocketWise in the recent apps tray if needed on MIUI/ColorOS.
-              </AppText>
+
+              {/* Brand Tabs */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+                {(['xiaomi', 'samsung', 'oppo', 'vivo', 'oneplus'] as const).map((brand) => (
+                  <TouchableOpacity
+                    key={brand}
+                    onPress={() => setSelectedOemBrand(brand)}
+                    style={[
+                      styles.brandTab,
+                      {
+                        backgroundColor: selectedOemBrand === brand ? colors.primary : colors.surface,
+                        borderColor: selectedOemBrand === brand ? colors.primary : colors.border,
+                        borderRadius: radius.full,
+                        marginRight: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="caption"
+                      weight="700"
+                      color={selectedOemBrand === brand ? '#FFF' : colors.textSecondary}
+                    >
+                      {brand === 'xiaomi'
+                        ? 'Xiaomi / Redmi'
+                        : brand === 'samsung'
+                        ? 'Samsung'
+                        : brand === 'oppo'
+                        ? 'Oppo / Realme'
+                        : brand === 'vivo'
+                        ? 'Vivo / iQOO'
+                        : 'OnePlus'}
+                    </AppText>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Brand Specific Instructions */}
+              <View
+                style={[
+                  styles.brandContent,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                    padding: spacing.sm,
+                  },
+                ]}
+              >
+                {selectedOemBrand === 'xiaomi' && (
+                  <AppText variant="caption" color={colors.textPrimary} style={{ lineHeight: 20 }}>
+                    1. Open <AppText weight="700">Security App</AppText> → <AppText weight="700">Manage Apps</AppText> → PocketWise{'\n'}
+                    2. Enable <AppText weight="700">Autostart</AppText>{'\n'}
+                    3. Under Battery Saver, select <AppText weight="700">No Restrictions</AppText>{'\n'}
+                    4. In Recent Apps screen, long press PocketWise and tap the <AppText weight="700">Lock</AppText> icon
+                  </AppText>
+                )}
+                {selectedOemBrand === 'samsung' && (
+                  <AppText variant="caption" color={colors.textPrimary} style={{ lineHeight: 20 }}>
+                    1. Go to <AppText weight="700">Settings</AppText> → <AppText weight="700">Apps</AppText> → PocketWise{'\n'}
+                    2. Tap <AppText weight="700">Battery</AppText> → Choose <AppText weight="700">Unrestricted</AppText>{'\n'}
+                    3. Go to <AppText weight="700">Device Care</AppText> → <AppText weight="700">Battery</AppText> → Background Usage Limits{'\n'}
+                    4. Add PocketWise to <AppText weight="700">Never Sleeping Apps</AppText>
+                  </AppText>
+                )}
+                {selectedOemBrand === 'oppo' && (
+                  <AppText variant="caption" color={colors.textPrimary} style={{ lineHeight: 20 }}>
+                    1. Go to <AppText weight="700">Settings</AppText> → <AppText weight="700">App Management</AppText> → PocketWise{'\n'}
+                    2. Tap <AppText weight="700">Battery Usage</AppText> → Allow <AppText weight="700">Background Activity</AppText>{'\n'}
+                    3. Enable <AppText weight="700">Auto Launch</AppText> and <AppText weight="700">Secondary Launch</AppText>
+                  </AppText>
+                )}
+                {selectedOemBrand === 'vivo' && (
+                  <AppText variant="caption" color={colors.textPrimary} style={{ lineHeight: 20 }}>
+                    1. Go to <AppText weight="700">Settings</AppText> → <AppText weight="700">Battery</AppText>{'\n'}
+                    2. Tap <AppText weight="700">Background Power Consumption Management</AppText>{'\n'}
+                    3. Find PocketWise → Choose <AppText weight="700">High Background Power Consumption</AppText>{'\n'}
+                    4. Enable <AppText weight="700">Autostart</AppText> in iManager
+                  </AppText>
+                )}
+                {selectedOemBrand === 'oneplus' && (
+                  <AppText variant="caption" color={colors.textPrimary} style={{ lineHeight: 20 }}>
+                    1. Go to <AppText weight="700">Settings</AppText> → <AppText weight="700">Battery</AppText> → <AppText weight="700">Battery Optimization</AppText>{'\n'}
+                    2. Select PocketWise → Choose <AppText weight="700">Don't Optimize</AppText>{'\n'}
+                    3. Go to <AppText weight="700">App Management</AppText> → PocketWise → Enable <AppText weight="700">Auto-Launch</AppText>
+                  </AppText>
+                )}
+              </View>
             </View>
           )}
         </TouchableOpacity>
@@ -453,6 +732,12 @@ export const AutomaticDetectionSettingsScreen: React.FC<AutomaticDetectionSettin
           </AppText>
         </View>
       </ScrollView>
+
+      {/* Learned Rules Management Modal */}
+      <ManageLearnedRulesModal
+        visible={isLearnedRulesVisible}
+        onClose={() => setIsLearnedRulesVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -519,5 +804,41 @@ const styles = StyleSheet.create({
   },
   oemCard: {
     borderWidth: 1,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  iconWrapSm: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  mappingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  accountPickerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  brandTab: {
+    borderWidth: 1,
+  },
+  brandContent: {
+    borderWidth: 1,
+    marginTop: 6,
   },
 });

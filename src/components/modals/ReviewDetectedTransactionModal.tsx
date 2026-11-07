@@ -16,9 +16,10 @@ import { AppInput } from '../common/AppInput';
 import { AppButton } from '../common/AppButton';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { useAppStore } from '../../store/useAppStore';
-import { DetectedTransaction } from '../../types';
+import { DetectedTransaction, TransactionSplit } from '../../types';
 import { Feather } from '@expo/vector-icons';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
+import { SplitTransactionModal } from './SplitTransactionModal';
 
 export interface ReviewDetectedTransactionModalProps {
   visible: boolean;
@@ -39,6 +40,9 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
 
   const accounts = useAppStore((state) => state.accounts);
   const categories = useAppStore((state) => state.categories);
+  const recurringPayments = useAppStore((state) => state.recurringPayments);
+  const transactions = useAppStore((state) => state.transactions);
+  const updateRecurringPayment = useAppStore((state) => state.updateRecurringPayment);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
   const confirmDetectedTransaction = useAppStore((state) => state.confirmDetectedTransaction);
   const rejectDetectedTransaction = useAppStore((state) => state.rejectDetectedTransaction);
@@ -49,6 +53,9 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [notes, setNotes] = useState('');
+  const [splits, setSplits] = useState<TransactionSplit[] | undefined>(undefined);
+  const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
+  const [isLinkedToRecurring, setIsLinkedToRecurring] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -58,6 +65,8 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
       setMerchant(detectedTransaction.merchant);
       setType(detectedTransaction.type);
       setNotes(detectedTransaction.notes || `Auto-detected via ${detectedTransaction.paymentProvider}`);
+      setSplits(detectedTransaction.splits);
+      setIsLinkedToRecurring(false);
       setError('');
 
       // Find best category match
@@ -83,6 +92,31 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
     (c) => c.type === type || c.type === 'both'
   );
 
+  const parsedNumAmount = parseFloat(amount.replace(/,/g, '')) || detectedTransaction.amount;
+
+  // F2.3 Matching logic
+  const matchedRecurring = recurringPayments.find((r) => {
+    const amtDiff = Math.abs(r.amount - parsedNumAmount) / (r.amount || 1);
+    const nameMatch =
+      r.title.toLowerCase().includes(detectedTransaction.merchant.toLowerCase()) ||
+      detectedTransaction.merchant.toLowerCase().includes(r.title.toLowerCase());
+    return (amtDiff <= 0.05 && nameMatch) || amtDiff === 0;
+  });
+
+  const matchedRecentTx = transactions.find((t) => {
+    if (t.amount !== parsedNumAmount) return false;
+    const txTime = new Date(t.date).getTime();
+    return Math.abs(txTime - detectedTransaction.transactionTimestamp) < 24 * 60 * 60 * 1000;
+  });
+
+  // F2.4 Available balance awareness
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+  const availBalance = detectedTransaction.availableBalance;
+  const hasBalanceMismatch =
+    availBalance !== undefined &&
+    selectedAccount &&
+    Math.abs(selectedAccount.balance - availBalance) > 10;
+
   const handleConfirm = async () => {
     const numAmount = parseFloat(amount.replace(/,/g, ''));
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -99,6 +133,12 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
       const cat = categories.find((c) => c.id === selectedCatId);
       const acc = accounts.find((a) => a.id === selectedAccountId);
 
+      if (isLinkedToRecurring && matchedRecurring) {
+        await updateRecurringPayment(matchedRecurring.id, {
+          lastPaidDate: new Date().toISOString(),
+        });
+      }
+
       await confirmDetectedTransaction(detectedTransaction.id, {
         amount: numAmount,
         title: merchant.trim(),
@@ -110,7 +150,11 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
         categoryColor: cat?.color || '#64748B',
         accountId: acc?.id || 'acc-default',
         accountName: acc?.name || 'Bank Account',
-        notes: notes.trim(),
+        splits: splits && splits.length > 0 ? splits : undefined,
+        notes:
+          isLinkedToRecurring && matchedRecurring
+            ? `${notes.trim()} • Linked to recurring bill "${matchedRecurring.title}"`
+            : notes.trim(),
       });
 
       setIsSubmitting(false);
@@ -242,6 +286,77 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
               )}
             </View>
 
+            {/* F2.3 Recurring Bill Match Banner */}
+            {matchedRecurring && (
+              <View
+                style={[
+                  styles.matchBanner,
+                  {
+                    backgroundColor: `${colors.primary}12`,
+                    borderColor: colors.primary,
+                    borderRadius: radius.lg,
+                    padding: spacing.sm,
+                    marginBottom: spacing.md,
+                  },
+                ]}
+              >
+                <Feather name="link" size={16} color={colors.primary} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <AppText variant="caption" weight="800" color={colors.primary}>
+                    MATCHES RECURRING BILL
+                  </AppText>
+                  <AppText variant="caption" color={colors.textPrimary}>
+                    {matchedRecurring.title} ({currencySymbol}{matchedRecurring.amount.toFixed(2)})
+                  </AppText>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsLinkedToRecurring(!isLinkedToRecurring)}
+                  style={[
+                    styles.linkActionBtn,
+                    {
+                      backgroundColor: isLinkedToRecurring ? colors.primary : colors.surface,
+                      borderColor: colors.primary,
+                      borderRadius: radius.full,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    weight="700"
+                    color={isLinkedToRecurring ? '#FFF' : colors.primary}
+                  >
+                    {isLinkedToRecurring ? 'Linked ✓' : 'Link Bill'}
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* F2.3 Recent Transaction / Duplicate Warning */}
+            {matchedRecentTx && (
+              <View
+                style={[
+                  styles.matchBanner,
+                  {
+                    backgroundColor: `${colors.warning || '#D97706'}15`,
+                    borderColor: colors.warning || '#D97706',
+                    borderRadius: radius.lg,
+                    padding: spacing.sm,
+                    marginBottom: spacing.md,
+                  },
+                ]}
+              >
+                <Feather name="alert-triangle" size={16} color={colors.warning || '#D97706'} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <AppText variant="caption" weight="800" color={colors.warning || '#D97706'}>
+                    POSSIBLE DUPLICATE
+                  </AppText>
+                  <AppText variant="caption" color={colors.textPrimary}>
+                    Already logged {currencySymbol}{matchedRecentTx.amount.toFixed(2)} on {matchedRecentTx.date.split('T')[0]} ({matchedRecentTx.title})
+                  </AppText>
+                </View>
+              </View>
+            )}
+
             {/* Error message */}
             {error ? (
               <View
@@ -325,49 +440,100 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
               />
             </View>
 
-            {/* Category Selector */}
-            <AppText variant="caption" color={colors.textSecondary} weight="700" style={{ marginBottom: spacing.xs }}>
-              CATEGORY
-            </AppText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
-              <View style={styles.catRow}>
-                {relevantCategories.map((cat) => {
-                  const isSelected = selectedCatId === cat.id;
-                  return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      onPress={() => setSelectedCatId(cat.id)}
+            {/* Category or Splits Selector (F2.6) */}
+            {splits && splits.length > 0 ? (
+              <View style={{ marginBottom: spacing.md }}>
+                <View style={styles.sectionHeaderRow}>
+                  <AppText variant="caption" color={colors.textSecondary} weight="700">
+                    SPLIT CATEGORIES ({splits.length} parts)
+                  </AppText>
+                  <TouchableOpacity onPress={() => setIsSplitModalVisible(true)}>
+                    <AppText variant="caption" weight="700" color={colors.primary}>
+                      Edit Splits
+                    </AppText>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+                  {splits.map((s) => (
+                    <View
+                      key={s.id}
                       style={[
-                        styles.catChip,
+                        styles.splitChip,
                         {
-                          backgroundColor: isSelected ? cat.color : colors.surface,
-                          borderColor: isSelected ? cat.color : colors.border,
-                          borderRadius: radius.xl,
-                          paddingVertical: spacing.xs,
-                          paddingHorizontal: spacing.md,
-                          marginRight: spacing.sm,
+                          backgroundColor: `${s.categoryColor || colors.primary}20`,
+                          borderColor: s.categoryColor || colors.primary,
+                          borderRadius: radius.md,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          marginRight: 6,
+                          borderWidth: 1,
                         },
                       ]}
                     >
-                      <CategoryIcon
-                        iconName={cat.icon}
-                        color={isSelected ? '#FFF' : cat.color}
-                        size={14}
-                        containerSize={24}
-                      />
-                      <AppText
-                        variant="caption"
-                        color={isSelected ? '#FFF' : colors.textPrimary}
-                        weight={isSelected ? '700' : '500'}
-                        style={{ marginLeft: 6 }}
-                      >
-                        {cat.name}
+                      <AppText variant="caption" weight="700" color={s.categoryColor || colors.primary}>
+                        {s.categoryName}: {currencySymbol}{s.amount.toFixed(2)}
                       </AppText>
-                    </TouchableOpacity>
-                  );
-                })}
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
-            </ScrollView>
+            ) : (
+              <>
+                <View style={styles.sectionHeaderRow}>
+                  <AppText variant="caption" color={colors.textSecondary} weight="700">
+                    CATEGORY
+                  </AppText>
+                  <TouchableOpacity
+                    onPress={() => setIsSplitModalVisible(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <Feather name="scissors" size={12} color={colors.primary} />
+                    <AppText variant="caption" weight="700" color={colors.primary} style={{ marginLeft: 4 }}>
+                      Split
+                    </AppText>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
+                  <View style={styles.catRow}>
+                    {relevantCategories.map((cat) => {
+                      const isSelected = selectedCatId === cat.id;
+                      return (
+                        <TouchableOpacity
+                          key={cat.id}
+                          onPress={() => setSelectedCatId(cat.id)}
+                          style={[
+                            styles.catChip,
+                            {
+                              backgroundColor: isSelected ? cat.color : colors.surface,
+                              borderColor: isSelected ? cat.color : colors.border,
+                              borderRadius: radius.xl,
+                              paddingVertical: spacing.xs,
+                              paddingHorizontal: spacing.md,
+                              marginRight: spacing.sm,
+                            },
+                          ]}
+                        >
+                          <CategoryIcon
+                            iconName={cat.icon}
+                            color={isSelected ? '#FFF' : cat.color}
+                            size={14}
+                            containerSize={24}
+                          />
+                          <AppText
+                            variant="caption"
+                            color={isSelected ? '#FFF' : colors.textPrimary}
+                            weight={isSelected ? '700' : '500'}
+                            style={{ marginLeft: 6 }}
+                          >
+                            {cat.name}
+                          </AppText>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </>
+            )}
 
             {/* Account Selector */}
             {accounts.length > 0 && (
@@ -375,7 +541,7 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
                 <AppText variant="caption" color={colors.textSecondary} weight="700" style={{ marginBottom: spacing.xs }}>
                   DEBITED ACCOUNT
                 </AppText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
                   <View style={styles.catRow}>
                     {accounts.map((acc) => {
                       const isSelected = selectedAccountId === acc.id;
@@ -413,6 +579,31 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
                     })}
                   </View>
                 </ScrollView>
+
+                {/* F2.4 Available Balance Awareness Hint */}
+                {hasBalanceMismatch && (
+                  <View
+                    style={[
+                      styles.balanceHintBanner,
+                      {
+                        backgroundColor: colors.surfaceVariant,
+                        borderColor: colors.border,
+                        borderRadius: radius.md,
+                        padding: spacing.xs,
+                        marginBottom: spacing.md,
+                      },
+                    ]}
+                  >
+                    <Feather name="info" size={14} color={colors.primary} />
+                    <AppText
+                      variant="caption"
+                      color={colors.textSecondary}
+                      style={{ marginLeft: 6, flex: 1, lineHeight: 18 }}
+                    >
+                      Bank Balance Hint: Notification reports available balance of {currencySymbol}{availBalance?.toFixed(2)}, while {selectedAccount?.name} has {currencySymbol}{selectedAccount?.balance.toFixed(2)}.
+                    </AppText>
+                  </View>
+                )}
               </>
             )}
 
@@ -449,6 +640,15 @@ export const ReviewDetectedTransactionModal: React.FC<ReviewDetectedTransactionM
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Split Transaction Modal (F2.6) */}
+      <SplitTransactionModal
+        visible={isSplitModalVisible}
+        totalAmount={parsedNumAmount}
+        initialSplits={splits}
+        onSave={(newSplits) => setSplits(newSplits)}
+        onClose={() => setIsSplitModalVisible(false)}
+      />
     </Modal>
   );
 };
@@ -501,6 +701,31 @@ const styles = StyleSheet.create({
   confidenceTag: {
     paddingHorizontal: 8,
     paddingVertical: 2,
+  },
+  matchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  linkActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  splitChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  balanceHintBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
   },
   errorBanner: {
     flexDirection: 'row',

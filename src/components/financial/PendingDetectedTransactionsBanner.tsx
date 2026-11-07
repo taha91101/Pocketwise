@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { Feather } from '@expo/vector-icons';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { ReviewDetectedTransactionModal } from '../modals/ReviewDetectedTransactionModal';
+import { BatchReviewModal } from '../modals/BatchReviewModal';
 import { DetectedTransaction } from '../../types';
 
 export const PendingDetectedTransactionsBanner: React.FC = () => {
@@ -15,6 +16,7 @@ export const PendingDetectedTransactionsBanner: React.FC = () => {
 
   const pendingList = detectedTransactions.filter((d) => d.status === 'DETECTED');
   const [selectedTx, setSelectedTx] = useState<DetectedTransaction | null>(null);
+  const [isBatchModalVisible, setIsBatchModalVisible] = useState(false);
 
   if (pendingList.length === 0) return null;
 
@@ -22,9 +24,7 @@ export const PendingDetectedTransactionsBanner: React.FC = () => {
 
   return (
     <>
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={() => setSelectedTx(latest)}
+      <View
         style={[
           styles.container,
           {
@@ -52,15 +52,44 @@ export const PendingDetectedTransactionsBanner: React.FC = () => {
             </AppText>
           </View>
 
-          <View style={[styles.reviewBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}>
-            <AppText variant="caption" color="#FFF" weight="700">
-              Review
-            </AppText>
-            <Feather name="chevron-right" size={12} color="#FFF" style={{ marginLeft: 2 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {pendingList.length > 1 && (
+              <TouchableOpacity
+                onPress={() => setIsBatchModalVisible(true)}
+                style={[
+                  styles.batchBtn,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.primary,
+                    borderRadius: radius.full,
+                    marginRight: 6,
+                  },
+                ]}
+              >
+                <Feather name="layers" size={12} color={colors.primary} />
+                <AppText variant="caption" color={colors.primary} weight="700" style={{ marginLeft: 4 }}>
+                  Batch ({pendingList.length})
+                </AppText>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setSelectedTx(latest)}
+              style={[styles.reviewBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
+            >
+              <AppText variant="caption" color="#FFF" weight="700">
+                Review
+              </AppText>
+              <Feather name="chevron-right" size={12} color="#FFF" style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={[styles.bottomRow, { marginTop: spacing.xs }]}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => setSelectedTx(latest)}
+          style={[styles.bottomRow, { marginTop: spacing.xs }]}
+        >
           <View style={{ flex: 1 }}>
             <AppText variant="subtitle2" weight="700" numberOfLines={1}>
               {latest.merchant}
@@ -73,13 +102,18 @@ export const PendingDetectedTransactionsBanner: React.FC = () => {
           <AppText variant="amountSmall" color={colors.textPrimary} weight="800">
             {FinancialCalculationsService.formatCurrency(latest.amount, currencySymbol)}
           </AppText>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
 
       <ReviewDetectedTransactionModal
         visible={!!selectedTx}
         detectedTransaction={selectedTx}
         onClose={() => setSelectedTx(null)}
+      />
+
+      <BatchReviewModal
+        visible={isBatchModalVisible}
+        onClose={() => setIsBatchModalVisible(false)}
       />
     </>
   );
@@ -109,6 +143,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 3,
+  },
+  batchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
   },
   bottomRow: {
     flexDirection: 'row',

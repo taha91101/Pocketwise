@@ -17,8 +17,9 @@ import { AppInput } from '../common/AppInput';
 import { AppButton } from '../common/AppButton';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { useAppStore } from '../../store/useAppStore';
-import { Transaction } from '../../types';
+import { Transaction, TransactionSplit } from '../../types';
 import { pickReceiptFromGallery, captureReceiptWithCamera } from '../../services/receiptService';
+import { SplitTransactionModal } from './SplitTransactionModal';
 
 interface EditTransactionModalProps {
   visible: boolean;
@@ -45,6 +46,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId);
   const [notes, setNotes] = useState(transaction.notes || '');
   const [receiptUri, setReceiptUri] = useState<string | undefined>(transaction.receiptUri);
+  const [splits, setSplits] = useState<TransactionSplit[] | undefined>(transaction.splits);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,6 +59,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setSelectedAccountId(transaction.accountId);
       setNotes(transaction.notes || '');
       setReceiptUri(transaction.receiptUri);
+      setSplits(transaction.splits);
       setErrorMsg('');
       setIsSubmitting(false);
     }
@@ -101,6 +105,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         categoryColor: selectedCategory?.color || transaction.categoryColor,
         accountId: selectedAccount.id,
         accountName: selectedAccount.name,
+        splits: splits && splits.length > 0 ? splits : undefined,
         notes: notes.trim() || undefined,
         receiptUri: receiptUri ?? undefined,
       });
@@ -184,42 +189,85 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 />
               </View>
 
-              {/* Category Picker */}
+              {/* Category Picker (F2.6 Split support) */}
               <View style={{ marginBottom: spacing.md }}>
-                <AppText variant="subtitle2" weight="600" style={{ marginBottom: spacing.xs }}>
-                  Category
-                </AppText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerRow}>
-                  {relevantCategories.map((cat) => {
-                    const isSelected = selectedCategoryId === cat.id;
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        activeOpacity={0.7}
-                        onPress={() => setSelectedCategoryId(cat.id)}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <AppText variant="subtitle2" weight="600">
+                    {splits && splits.length > 0 ? `Split Categories (${splits.length})` : 'Category'}
+                  </AppText>
+                  {transaction.type === 'expense' && (
+                    <TouchableOpacity
+                      onPress={() => setIsSplitModalOpen(true)}
+                      style={{ flexDirection: 'row', alignItems: 'center' }}
+                    >
+                      <Feather name="scissors" size={12} color={colors.primary} />
+                      <AppText variant="caption" weight="700" color={colors.primary} style={{ marginLeft: 4 }}>
+                        {splits && splits.length > 0 ? 'Edit Splits' : 'Split'}
+                      </AppText>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {splits && splits.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerRow}>
+                    {splits.map((s) => (
+                      <View
+                        key={s.id}
                         style={[
                           styles.chip,
                           {
-                            backgroundColor: isSelected ? colors.primaryLight : colors.surface,
-                            borderColor: isSelected ? colors.primary : colors.border,
+                            backgroundColor: `${s.categoryColor || colors.primary}20`,
+                            borderColor: s.categoryColor || colors.primary,
                             borderRadius: radius.full,
                             marginRight: spacing.xs,
                           },
                         ]}
                       >
-                        <CategoryIcon iconName={cat.icon} color={isSelected ? colors.primary : cat.color} size={14} containerSize={24} />
+                        <CategoryIcon iconName={s.categoryIcon} color={s.categoryColor || colors.primary} size={14} containerSize={24} />
                         <AppText
                           variant="caption"
-                          weight={isSelected ? '700' : '500'}
-                          color={isSelected ? colors.primary : colors.textPrimary}
+                          weight="700"
+                          color={s.categoryColor || colors.primary}
                           style={{ marginLeft: 6 }}
                         >
-                          {cat.name}
+                          {s.categoryName}: {currencySymbol}{s.amount.toFixed(2)}
                         </AppText>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerRow}>
+                    {relevantCategories.map((cat) => {
+                      const isSelected = selectedCategoryId === cat.id;
+                      return (
+                        <TouchableOpacity
+                          key={cat.id}
+                          activeOpacity={0.7}
+                          onPress={() => setSelectedCategoryId(cat.id)}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: isSelected ? colors.primaryLight : colors.surface,
+                              borderColor: isSelected ? colors.primary : colors.border,
+                              borderRadius: radius.full,
+                              marginRight: spacing.xs,
+                            },
+                          ]}
+                        >
+                          <CategoryIcon iconName={cat.icon} color={isSelected ? colors.primary : cat.color} size={14} containerSize={24} />
+                          <AppText
+                            variant="caption"
+                            weight={isSelected ? '700' : '500'}
+                            color={isSelected ? colors.primary : colors.textPrimary}
+                            style={{ marginLeft: 6 }}
+                          >
+                            {cat.name}
+                          </AppText>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
               </View>
 
               {/* Account Picker */}
@@ -393,6 +441,14 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      <SplitTransactionModal
+        visible={isSplitModalOpen}
+        totalAmount={parseFloat(amount.trim()) || 0}
+        initialSplits={splits}
+        onSave={(newSplits) => setSplits(newSplits)}
+        onClose={() => setIsSplitModalOpen(false)}
+      />
     </Modal>
   );
 };

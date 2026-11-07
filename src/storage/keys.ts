@@ -7,5 +7,7 @@ export const STORAGE_KEYS = {
   CATEGORIES: '@pocketwise_categories_v2',
   USER_SETTINGS: '@pocketwise_settings_v2',
   DETECTED_TRANSACTIONS: '@pocketwise_detected_transactions_v2',
+  LEARNED_RULES: '@pocketwise_learned_rules_v2',
+  DETECTION_DIAGNOSTICS: '@pocketwise_detection_diagnostics_v2',
 };
 

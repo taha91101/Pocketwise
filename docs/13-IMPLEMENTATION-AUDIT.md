@@ -8,8 +8,8 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 | Category | Count | Status Assessment |
 | :--- | :---: | :--- |
-| **Fully Implemented Features** | 19 | 100% production-ready, verified with 104 unit tests |
-| **Partially Implemented Features** | 0 | All partial audit findings remediated in v1.1 Phase 1 |
+| **Fully Implemented Features** | 25 | 100% production-ready, verified with 138 unit tests across 12 suites |
+| **Partially Implemented Features** | 0 | All Phase 1 & Phase 2 roadmap deliverables complete |
 | **Unused / Dead Code Components** | 0 | Dead code purged during Phase 0 baseline remediation |
 | **Technical Debt & Type Issues** | 0 | Strict typecheck (0 errors) and automated CI pipeline |
 | **Known Platform Limitations** | 2 | Hardware/OS constraints (iOS notification restrictions, Expo Go) |
@@ -51,6 +51,40 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 #### 3. Custom Category Creation UI (RESOLVED)
 - **Remediation**: Built `ManageCategoriesModal.tsx` and `AddCategoryModal.tsx` with 22 Feather icons and 12-color palette. Added inline "+ New Category" button in transaction modal. Handled cascading reassignments on delete and JSON export/import survival. Verified with 4 unit tests in `src/__tests__/categoryActions.test.ts`.
+
+---
+
+### 2.3 Phase 2 (v1.2) Smarter Automatic Capture Deliverables (COMPLETED)
+
+1. **F2.1 Detection Reliability & Coverage**:
+   - Expanded parsers for 11 payment apps: Google Pay, PhonePe, Paytm, Navi, Slice, MobiKwik, Freecharge, Jupiter, Fi Money, CRED, and Generic Bank UPI (HDFC, SBI, ICICI, Axis, Kotak, IDFC FIRST, YES Bank, Federal, PNB, Canara, Union, BoB, IndusInd).
+   - In-app diagnostics log: `DetectionDiagnosticsScreen` with live outcome filtering (`DETECTED`, `DROPPED_FAILURE`, `DROPPED_NOISE`, `DROPPED_OTP`, `DROPPED_REQUEST`, `DROPPED_UNSUPPORTED`).
+   - OEM battery / autostart setup guide with tailored instructions for Xiaomi/HyperOS, Samsung/One UI, Oppo/Realme, Vivo/iQOO, and OnePlus.
+   - Verified with 27 fixtures in `src/__tests__/detectionFixtures.test.ts`.
+
+2. **F2.2 Learn From Corrections**:
+   - Learned merchant-to-category rules engine in `MerchantCategorizer.categorize` taking top priority before built-in and heuristic matches.
+   - Automatically learns preferences whenever a detected payment's category is adjusted during review.
+   - `ManageLearnedRulesModal` with keyword search and rule deletion.
+   - Verified with 4 unit tests in `src/__tests__/learnedRules.test.ts`.
+
+3. **F2.3 Match Detected Payments to Existing Records**:
+   - Cross-references incoming payments against due recurring bills (within 5% amount and title substring) with one-tap "Link Bill" to mark paid.
+   - Checks against recent transactions within 24h to flag potential double-entry duplicates.
+
+4. **F2.4 Default Account Mappings & Balance Awareness**:
+   - Provider-to-account defaults in settings (`settings.providerAccountMappings`) for Google Pay, PhonePe, Paytm, CRED, Bank UPI.
+   - Balance mismatch hints in `ReviewDetectedTransactionModal` when detected bank balance deviates from PocketWise account balance.
+
+5. **F2.5 Richer Detected Types & Batch Review**:
+   - Support for salary credits (income), refunds, and ATM cash withdrawals.
+   - `BatchReviewModal` with multi-select checkboxes, "Select All", and "Bulk Assign Category" to confirm or reject multiple detected items at once.
+
+6. **F2.6 Split Transactions**:
+   - `SplitTransactionModal` with multi-category allocation, running balance validation, and single account debit.
+   - Integrated into `AddTransactionModal`, `EditTransactionModal`, and `ReviewDetectedTransactionModal`.
+   - Visual breakdown in `TransactionDetailScreen` and split indicators in ledger items.
+   - Verified with 3 unit tests in `src/__tests__/splitTransactions.test.ts`.
 
 ---
 

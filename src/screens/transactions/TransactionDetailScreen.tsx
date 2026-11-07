@@ -223,6 +223,67 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
           <DetailRow label="Reference ID" value={transaction.id} icon="hash" isLast />
         </View>
 
+        {/* Split Categories Breakdown (F2.6) */}
+        {transaction.splits && transaction.splits.length > 0 && (
+          <View
+            style={[
+              styles.infoSection,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+                padding: spacing.lg,
+                marginTop: spacing.lg,
+                ...shadows.soft,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md }}>
+              <Feather name="scissors" size={16} color={colors.primary} />
+              <AppText variant="subtitle2" weight="700" style={{ marginLeft: 8 }}>
+                Split Breakdown ({transaction.splits.length} categories)
+              </AppText>
+            </View>
+
+            {transaction.splits.map((split, idx) => (
+              <View
+                key={split.id || idx}
+                style={[
+                  styles.splitDetailRow,
+                  {
+                    borderBottomColor: colors.border,
+                    borderBottomWidth: idx < transaction.splits!.length - 1 ? 1 : 0,
+                    paddingVertical: spacing.sm,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <CategoryIcon
+                    iconName={split.categoryIcon || 'tag'}
+                    color={split.categoryColor || colors.primary}
+                    size={14}
+                    containerSize={28}
+                  />
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <AppText variant="subtitle2" weight="600">
+                      {split.categoryName}
+                    </AppText>
+                    {split.notes ? (
+                      <AppText variant="caption" color={colors.textSecondary}>
+                        {split.notes}
+                      </AppText>
+                    ) : null}
+                  </View>
+                </View>
+
+                <AppText variant="subtitle2" weight="700">
+                  {FinancialCalculationsService.formatCurrency(split.amount, currencySymbol)}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Receipt / Attachment Section */}
         <View
           style={[
@@ -577,6 +638,11 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     borderWidth: 1,
+  },
+  splitDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   detailRow: {
     flexDirection: 'row',

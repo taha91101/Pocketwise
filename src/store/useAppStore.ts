@@ -11,8 +11,11 @@ import {
   Transaction,
   UserSettings,
   DetectedTransaction,
+  LearnedMerchantRule,
+  DetectionDiagnosticEvent,
 } from '../types';
 import { UPIDetectionService } from '../services/upiDetectionService';
+import { MerchantCategorizer } from '../services/upiParser';
 import { DEFAULT_CATEGORIES } from '../constants/categories';
 import { DEFAULT_PAYMENT_METHODS } from '../constants/paymentMethods';
 import {
@@ -103,14 +106,35 @@ interface AppState {
   // Data - Automatic UPI Expense Detection
   detectedTransactions: DetectedTransaction[];
   isNotificationAccessGranted: boolean;
+  learnedMerchantRules: LearnedMerchantRule[];
+  detectionDiagnostics: DetectionDiagnosticEvent[];
 
   // Actions - Automatic UPI Expense Detection
   syncDetectedTransactions: () => Promise<void>;
   processIncomingDetectedTransaction: (detected: DetectedTransaction) => Promise<Transaction | null>;
   confirmDetectedTransaction: (id: string, edits?: Partial<Transaction>) => Promise<Transaction | null>;
+  confirmBatchDetectedTransactions: (ids: string[], categoryIdOverride?: string) => Promise<Transaction[]>;
   rejectDetectedTransaction: (id: string) => Promise<boolean>;
+  rejectBatchDetectedTransactions: (ids: string[]) => Promise<boolean>;
   clearDetectedTransactions: () => Promise<void>;
   checkNotificationAccessStatus: () => Promise<boolean>;
+
+  // Actions - Learned Rules (F2.2)
+  addLearnedRule: (
+    merchantPattern: string,
+    categoryId: string,
+    categoryName: string,
+    categoryIcon?: string,
+    categoryColor?: string
+  ) => Promise<LearnedMerchantRule>;
+  deleteLearnedRule: (id: string) => Promise<boolean>;
+  clearLearnedRules: () => Promise<void>;
+
+  // Actions - Detection Diagnostics (F2.1)
+  recordDiagnosticEvent: (
+    event: Omit<DetectionDiagnosticEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+  ) => Promise<void>;
+  clearDiagnostics: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -125,6 +149,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: INITIAL_USER_SETTINGS,
   detectedTransactions: [],
   isNotificationAccessGranted: false,
+  learnedMerchantRules: [],
+  detectionDiagnostics: [],
   autoRecordedNotice: null,
 
   overview: FinancialCalculationsService.calculateOverview(
@@ -151,6 +177,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         savedSettings,
         savedCategories,
         savedDetected,
+        savedLearnedRules,
+        savedDiagnostics,
       ] = await Promise.all([
         StorageService.getItem<Account[]>(STORAGE_KEYS.ACCOUNTS, INITIAL_ACCOUNTS),
         StorageService.getItem<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS),
@@ -160,6 +188,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.getItem<UserSettings>(STORAGE_KEYS.USER_SETTINGS, INITIAL_USER_SETTINGS),
         StorageService.getItem<Category[]>(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES),
         StorageService.getItem<DetectedTransaction[]>(STORAGE_KEYS.DETECTED_TRANSACTIONS, []),
+        StorageService.getItem<LearnedMerchantRule[]>(STORAGE_KEYS.LEARNED_RULES, []),
+        StorageService.getItem<DetectionDiagnosticEvent[]>(STORAGE_KEYS.DETECTION_DIAGNOSTICS, []),
       ]);
 
       const overview = FinancialCalculationsService.calculateOverview(savedAccounts, savedTransactions, savedGoals);
@@ -211,6 +241,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         categories: savedCategories,
         detectedTransactions: finalDetected,
         isNotificationAccessGranted: isAccessGranted,
+        learnedMerchantRules: savedLearnedRules || [],
+        detectionDiagnostics: savedDiagnostics || [],
         overview,
         insights,
       });
@@ -259,6 +291,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       recurringPayments: INITIAL_RECURRING_PAYMENTS,
       categories: DEFAULT_CATEGORIES,
       settings: INITIAL_USER_SETTINGS,
+      detectedTransactions: [],
+      learnedMerchantRules: [],
+      detectionDiagnostics: [],
       overview,
       insights,
     });
@@ -273,6 +308,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const recurringPayments = data.recurringPayments || [];
       const categories = data.categories || get().categories || DEFAULT_CATEGORIES;
       const settings = data.settings || get().settings;
+      const learnedMerchantRules = data.learnedMerchantRules || get().learnedMerchantRules || [];
 
       await Promise.all([
         StorageService.setItem(STORAGE_KEYS.ACCOUNTS, accounts),
@@ -282,6 +318,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.setItem(STORAGE_KEYS.RECURRING_PAYMENTS, recurringPayments),
         StorageService.setItem(STORAGE_KEYS.CATEGORIES, categories),
         StorageService.setItem(STORAGE_KEYS.USER_SETTINGS, settings),
+        StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, learnedMerchantRules),
       ]);
 
       const overview = FinancialCalculationsService.calculateOverview(accounts, transactions, savingsGoals);
@@ -301,6 +338,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         recurringPayments,
         categories,
         settings,
+        learnedMerchantRules,
         overview,
         insights,
       });
@@ -1265,11 +1303,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const target = state.detectedTransactions.find((d) => d.id === id);
     if (!target) return null;
 
+    // Automatically learn merchant rule if category was updated (F2.2)
+    if (edits?.categoryId && edits.categoryId !== target.suggestedCategoryId) {
+      const cat = state.categories.find((c) => c.id === edits.categoryId);
+      if (cat) {
+        await get().addLearnedRule(target.merchant, cat.id, cat.name, cat.icon, cat.color);
+      }
+    }
+
     const txInput = UPIDetectionService.convertDetectedToTransactionInput(
       target,
       state.categories,
       state.accounts,
-      edits
+      edits,
+      state.settings.providerAccountMappings
     );
 
     const createdTx = await state.addTransaction(txInput);
@@ -1281,6 +1328,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ detectedTransactions: updatedDetected });
     await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, updatedDetected);
     return createdTx;
+  },
+
+  confirmBatchDetectedTransactions: async (ids, categoryIdOverride) => {
+    const state = get();
+    const results: Transaction[] = [];
+    const remainingDetected = [...state.detectedTransactions];
+
+    for (const id of ids) {
+      const target = remainingDetected.find((d) => d.id === id);
+      if (!target) continue;
+
+      let edits: Partial<Transaction> | undefined;
+      if (categoryIdOverride) {
+        const cat = state.categories.find((c) => c.id === categoryIdOverride);
+        if (cat) {
+          edits = {
+            categoryId: cat.id,
+            categoryName: cat.name,
+            categoryIcon: cat.icon,
+            categoryColor: cat.color,
+          };
+          await get().addLearnedRule(target.merchant, cat.id, cat.name, cat.icon, cat.color);
+        }
+      }
+
+      const txInput = UPIDetectionService.convertDetectedToTransactionInput(
+        target,
+        state.categories,
+        state.accounts,
+        edits,
+        state.settings.providerAccountMappings
+      );
+
+      const createdTx = await state.addTransaction(txInput);
+      await UPIDetectionService.confirmDetectedTransaction(id);
+      results.push(createdTx);
+
+      const idx = remainingDetected.findIndex((d) => d.id === id);
+      if (idx !== -1) {
+        remainingDetected[idx] = { ...remainingDetected[idx], status: 'CONFIRMED' };
+      }
+    }
+
+    set({ detectedTransactions: remainingDetected });
+    await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, remainingDetected);
+    return results;
   },
 
   rejectDetectedTransaction: async (id) => {
@@ -1295,9 +1388,99 @@ export const useAppStore = create<AppState>((set, get) => ({
     return true;
   },
 
+  rejectBatchDetectedTransactions: async (ids) => {
+    const state = get();
+    for (const id of ids) {
+      await UPIDetectionService.rejectDetectedTransaction(id);
+    }
+    const updated = state.detectedTransactions.map((d) =>
+      ids.includes(d.id) ? { ...d, status: 'REJECTED' as const } : d
+    );
+    set({ detectedTransactions: updated });
+    await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, updated);
+    return true;
+  },
+
   clearDetectedTransactions: async () => {
     await UPIDetectionService.clearDetectedTransactions();
     set({ detectedTransactions: [] });
     await StorageService.setItem(STORAGE_KEYS.DETECTED_TRANSACTIONS, []);
+  },
+
+  // Actions - Learned Rules (F2.2)
+  addLearnedRule: async (merchantPattern, categoryId, categoryName, categoryIcon, categoryColor) => {
+    const state = get();
+    const cleanPattern = MerchantCategorizer.cleanMerchantName(merchantPattern);
+    const existingIndex = state.learnedMerchantRules.findIndex(
+      (r) => r.merchantPattern.toLowerCase() === cleanPattern.toLowerCase()
+    );
+
+    let updatedRules: LearnedMerchantRule[];
+    let rule: LearnedMerchantRule;
+
+    if (existingIndex >= 0) {
+      rule = {
+        ...state.learnedMerchantRules[existingIndex],
+        categoryId,
+        categoryName,
+        categoryIcon: categoryIcon || state.learnedMerchantRules[existingIndex].categoryIcon,
+        categoryColor: categoryColor || state.learnedMerchantRules[existingIndex].categoryColor,
+      };
+      updatedRules = [...state.learnedMerchantRules];
+      updatedRules[existingIndex] = rule;
+    } else {
+      rule = {
+        id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        merchantPattern: cleanPattern,
+        categoryId,
+        categoryName,
+        categoryIcon,
+        categoryColor,
+        createdAt: new Date().toISOString(),
+      };
+      updatedRules = [rule, ...state.learnedMerchantRules];
+    }
+
+    set({ learnedMerchantRules: updatedRules });
+    await StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, updatedRules);
+    return rule;
+  },
+
+  deleteLearnedRule: async (id) => {
+    const state = get();
+    const updated = state.learnedMerchantRules.filter((r) => r.id !== id);
+    set({ learnedMerchantRules: updated });
+    await StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, updated);
+    return true;
+  },
+
+  clearLearnedRules: async () => {
+    set({ learnedMerchantRules: [] });
+    await StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, []);
+  },
+
+  // Actions - Detection Diagnostics (F2.1)
+  recordDiagnosticEvent: async (eventData) => {
+    const state = get();
+    const newEvent: DetectionDiagnosticEvent = {
+      id: eventData.id || `diag-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: eventData.timestamp || Date.now(),
+      packageName: eventData.packageName,
+      titleSnippet: eventData.titleSnippet,
+      textSnippet: eventData.textSnippet,
+      outcome: eventData.outcome,
+      reason: eventData.reason,
+      parsedAmount: eventData.parsedAmount,
+      parsedMerchant: eventData.parsedMerchant,
+    };
+    // Keep max 100 diagnostics to prevent storage bloat
+    const updated = [newEvent, ...state.detectionDiagnostics].slice(0, 100);
+    set({ detectionDiagnostics: updated });
+    await StorageService.setItem(STORAGE_KEYS.DETECTION_DIAGNOSTICS, updated);
+  },
+
+  clearDiagnostics: async () => {
+    set({ detectionDiagnostics: [] });
+    await StorageService.setItem(STORAGE_KEYS.DETECTION_DIAGNOSTICS, []);
   },
 }));
