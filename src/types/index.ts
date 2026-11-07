@@ -103,6 +103,9 @@ export interface Budget {
   startDate: string;
   endDate: string;
   alertThreshold?: number; // default 80 (%)
+  rolloverEnabled?: boolean;
+  rolloverAmount?: number;
+  overallMonthlyCap?: number;
 }
 
 export interface SavingsGoal {
@@ -123,6 +126,7 @@ export interface RecurringPayment {
   id: string;
   title: string;
   amount: number;
+  type?: 'expense' | 'income';
   categoryId: string;
   categoryName: string;
   categoryIcon?: string;
@@ -135,6 +139,9 @@ export interface RecurringPayment {
   reminderDaysBefore: number;
   autoRecord?: boolean;
   lastPaidDate?: string;
+  yearlyCostRollup?: number;
+  previousAmount?: number;
+  isLikelySubscriptionDetected?: boolean;
   createdAt: string;
 }
 
@@ -222,6 +229,56 @@ export interface FinancialInsight {
   icon: string;
   color: string;
   date: string;
+  filterCriteria?: {
+    categoryId?: string;
+    transactionIds?: string[];
+    merchant?: string;
+  };
+}
+
+export interface CashFlowForecast {
+  projectedMonthEndBalance: number;
+  safeToSpendToday: number;
+  upcomingCommittedExpenses: number;
+  expectedRemainingIncome: number;
+  averageDailyDiscretionarySpend: number;
+  daysRemainingInMonth: number;
+  isLowBalanceWarning: boolean;
+  lowBalanceThreshold: number;
+  confidenceScore: number;
+}
+
+export type LiabilityType = 'credit_card' | 'loan' | 'emi' | 'other';
+
+export interface Liability {
+  id: string;
+  name: string;
+  type: LiabilityType;
+  totalAmount: number;
+  remainingAmount: number;
+  interestRate?: number;
+  minimumMonthlyPayment: number;
+  dueDate: string;
+  statementDate?: string;
+  creditLimit?: number; // for credit cards
+  payoffTargetDate?: string;
+  color?: string;
+  icon?: string;
+  accountId?: string;
+  isPaidOff?: boolean;
+  createdAt: string;
+}
+
+export interface SharedExpense {
+  id: string;
+  transactionId?: string;
+  friendName: string;
+  amount: number;
+  type: 'you_lent' | 'you_borrowed';
+  isSettled: boolean;
+  notes?: string;
+  createdAt: string;
+  settledAt?: string;
 }
 
 export interface FinancialOverview {
@@ -233,4 +290,6 @@ export interface FinancialOverview {
   monthOverMonthGrowth: number; // percentage
   openingBalance: number;
   closingBalance: number;
+  totalLiabilities?: number;
+  netWorth?: number;
 }

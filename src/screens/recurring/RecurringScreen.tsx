@@ -15,13 +15,17 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { RecurringPayment } from '../../types';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { Feather } from '@expo/vector-icons';
 
 export const RecurringScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
   const recurringPayments = useAppStore((state) => state.recurringPayments);
+  const transactions = useAppStore((state) => state.transactions);
+  const accounts = useAppStore((state) => state.accounts);
   const toggleRecurringPayment = useAppStore((state) => state.toggleRecurringPayment);
   const deleteRecurringPayment = useAppStore((state) => state.deleteRecurringPayment);
+  const addRecurringPayment = useAppStore((state) => state.addRecurringPayment);
   const addTransaction = useAppStore((state) => state.addTransaction);
   const autoRecordedNotice = useAppStore((state) => state.autoRecordedNotice);
   const clearAutoRecordedNotice = useAppStore((state) => state.clearAutoRecordedNotice);
@@ -31,9 +35,29 @@ export const RecurringScreen: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<RecurringPayment | null>(null);
 
-  const totalMonthlyCommitment = recurringPayments
-    .filter((p) => p.isActive)
-    .reduce((sum, p) => sum + p.amount, 0);
+  // F3.3 Recurring Intelligence calculations
+  const yearlyRollup = SubscriptionService.calculateYearlyRollup(recurringPayments);
+  const detectedCandidates = SubscriptionService.detectSubscriptionCandidates(transactions, recurringPayments);
+  const priceAlerts = SubscriptionService.detectPriceIncreases(recurringPayments, transactions);
+  const duplicateGroups = SubscriptionService.detectDuplicateSubscriptions(recurringPayments);
+
+  const handleAddDetectedSubscription = async (candidate: typeof detectedCandidates[0]) => {
+    const primaryAcc = accounts[0] || { id: 'acc-cash', name: 'Cash' };
+    await addRecurringPayment({
+      title: candidate.title,
+      amount: candidate.amount,
+      categoryId: candidate.suggestedCategoryId,
+      categoryName: candidate.suggestedCategoryName,
+      accountId: primaryAcc.id,
+      accountName: primaryAcc.name,
+      frequency: candidate.frequency,
+      nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      isActive: true,
+      reminderDaysBefore: 2,
+      autoRecord: true,
+      isLikelySubscriptionDetected: true,
+    });
+  };
 
   const handlePayNow = async (payment: RecurringPayment) => {
     // Record payment as an expense transaction immediately
@@ -147,43 +171,156 @@ export const RecurringScreen: React.FC = () => {
         contentContainerStyle={[styles.listContent, { paddingHorizontal: spacing.lg, paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={() => {
-          if (recurringPayments.length === 0) return null;
           return (
             <View style={{ marginBottom: spacing.lg }}>
-            {/* Monthly Commitment Card */}
-            <View
-              style={[
-                styles.summaryCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: radius.xxl,
-                  padding: spacing.lg,
-                  ...shadows.soft,
-                },
-              ]}
-            >
-              <AppText variant="caption" color={colors.textSecondary}>
-                Monthly Committed Outflow
-              </AppText>
-              <AppText variant="h2" weight="800" style={{ marginTop: spacing.xs }}>
-                {FinancialCalculationsService.formatCurrency(totalMonthlyCommitment, currencySymbol)}
-                <AppText variant="caption" color={colors.textMuted}>
-                  {' '}
-                  / month
+              {/* Annual Cost Rollup Card (F3.3) */}
+              <View
+                style={[
+                  styles.summaryCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: radius.xxl,
+                    padding: spacing.lg,
+                    marginBottom: spacing.md,
+                    ...shadows.soft,
+                  },
+                ]}
+              >
+                <AppText variant="caption" color={colors.textSecondary}>
+                  Total Annual Commitments
                 </AppText>
-              </AppText>
-              <AppText variant="caption" color={colors.textMuted} style={{ marginTop: 4 }}>
-                {recurringPayments.filter((p) => p.isActive).length} active subscriptions & recurring bills
-              </AppText>
-            </View>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xs }}>
+                  <AppText variant="h2" weight="800">
+                    {FinancialCalculationsService.formatCurrency(yearlyRollup.totalAnnualCost, currencySymbol)}
+                  </AppText>
+                  <AppText variant="caption" color={colors.textMuted} style={{ marginLeft: 6 }}>
+                    / year
+                  </AppText>
+                </View>
+                <AppText variant="caption" color={colors.textMuted} style={{ marginTop: 4 }}>
+                  Equates to ~{FinancialCalculationsService.formatCurrency(yearlyRollup.totalMonthlyEquivalent, currencySymbol)}/month across {yearlyRollup.count} active commitments
+                </AppText>
+              </View>
 
-            <AppText variant="subtitle1" weight="700" style={{ marginTop: spacing.xl, marginBottom: spacing.xs }}>
-              Active Payments
-            </AppText>
-          </View>
-        );
-      }}
+              {/* Price Increase Alerts (F3.3) */}
+              {priceAlerts.map((alert) => (
+                <View
+                  key={alert.recurringId}
+                  style={[
+                    styles.alertCard,
+                    {
+                      backgroundColor: colors.warning + '15',
+                      borderColor: colors.warning,
+                      borderRadius: radius.lg,
+                      padding: spacing.md,
+                      marginBottom: spacing.md,
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Feather name="trending-up" size={18} color={colors.warning} style={{ marginRight: 8 }} />
+                    <AppText variant="subtitle2" weight="700" color={colors.warning}>
+                      Price Increase: {alert.title}
+                    </AppText>
+                  </View>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 4 }}>
+                    Recent charge was {currencySymbol}{alert.newAmount.toLocaleString()} (+{alert.percentageIncrease}%), up from baseline of {currencySymbol}{alert.oldAmount.toLocaleString()}.
+                  </AppText>
+                </View>
+              ))}
+
+              {/* Duplicate Subscriptions Warning (F3.3) */}
+              {duplicateGroups.map((dup, idx) => (
+                <View
+                  key={`dup-${idx}`}
+                  style={[
+                    styles.alertCard,
+                    {
+                      backgroundColor: colors.primary + '15',
+                      borderColor: colors.primary,
+                      borderRadius: radius.lg,
+                      padding: spacing.md,
+                      marginBottom: spacing.md,
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Feather name="layers" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                    <AppText variant="subtitle2" weight="700" color={colors.primary}>
+                      Duplicate Subscriptions Warning
+                    </AppText>
+                  </View>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 4 }}>
+                    {dup.warning}
+                  </AppText>
+                </View>
+              ))}
+
+              {/* Detected Subscriptions (Auto-Watchdog F3.3) */}
+              {detectedCandidates.length > 0 && (
+                <View style={{ marginBottom: spacing.md }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+                    <Feather name="eye" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                    <AppText variant="subtitle2" weight="700">
+                      Detected Subscriptions ({detectedCandidates.length})
+                    </AppText>
+                  </View>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+                    Repeated payments spotted in your transaction history:
+                  </AppText>
+
+                  {detectedCandidates.map((cand) => (
+                    <View
+                      key={cand.id}
+                      style={[
+                        styles.detectedCard,
+                        {
+                          backgroundColor: colors.surfaceVariant,
+                          borderColor: colors.border,
+                          borderRadius: radius.lg,
+                          padding: spacing.md,
+                          marginBottom: spacing.xs,
+                        },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <AppText variant="subtitle2" weight="700">
+                          {cand.title}
+                        </AppText>
+                        <AppText variant="caption" color={colors.textSecondary}>
+                          {currencySymbol}{cand.amount.toLocaleString()} • {cand.frequency} ({cand.occurrences} transactions)
+                        </AppText>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleAddDetectedSubscription(cand)}
+                        style={[
+                          styles.addCandBtn,
+                          {
+                            backgroundColor: colors.primary,
+                            borderRadius: radius.md,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                          },
+                        ]}
+                      >
+                        <AppText variant="caption" weight="700" color="#FFFFFF">
+                          + Track
+                        </AppText>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {recurringPayments.length > 0 && (
+                <AppText variant="subtitle1" weight="700" style={{ marginTop: spacing.sm, marginBottom: spacing.xs }}>
+                  Active Payments
+                </AppText>
+              )}
+            </View>
+          );
+        }}
         renderItem={({ item }) => (
           <View style={{ marginBottom: spacing.sm }}>
             <UpcomingPaymentCard
@@ -243,5 +380,19 @@ const styles = StyleSheet.create({
   summaryCard: {
     width: '100%',
     borderWidth: 1,
+  },
+  alertCard: {
+    width: '100%',
+    borderWidth: 1,
+  },
+  detectedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+  },
+  addCandBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

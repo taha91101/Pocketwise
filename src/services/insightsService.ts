@@ -61,6 +61,7 @@ export class InsightsService {
         icon: 'pie-chart',
         color: topCat.categoryColor || '#3B82F6',
         date: now.toISOString(),
+        filterCriteria: { categoryId: topCat.categoryId },
       });
 
       // 3. Smart "Save More" suggestion on top discretionary categories (food, shopping, entertainment)
@@ -75,6 +76,7 @@ export class InsightsService {
           icon: 'zap',
           color: '#0D9488',
           date: now.toISOString(),
+          filterCriteria: { categoryId: topCat.categoryId },
         });
       }
     }
@@ -133,6 +135,7 @@ export class InsightsService {
           icon: 'alert-triangle',
           color: '#EF4444',
           date: now.toISOString(),
+          filterCriteria: { categoryId: budget.categoryId },
         });
       } else if (perf.status === 'warning') {
         insights.push({
@@ -143,11 +146,12 @@ export class InsightsService {
           icon: 'alert-circle',
           color: '#F59E0B',
           date: now.toISOString(),
+          filterCriteria: { categoryId: budget.categoryId },
         });
       }
     }
 
-    // 7. Goal milestones
+    // 7. Goal milestones and pacing
     for (const goal of goals) {
       const metrics = FinancialCalculationsService.calculateGoalMetrics(goal);
       if (metrics.isCompleted) {
@@ -170,6 +174,143 @@ export class InsightsService {
           color: '#0D9488',
           date: now.toISOString(),
         });
+      }
+
+      // Goal pacing check
+      if (!metrics.isCompleted && goal.targetDate && goal.monthlyContribution > 0) {
+        const targetDate = new Date(goal.targetDate);
+        const monthsRemaining = Math.max(
+          1,
+          (targetDate.getFullYear() - now.getFullYear()) * 12 +
+            (targetDate.getMonth() - now.getMonth())
+        );
+        const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
+        const requiredMonthly = remainingAmount / monthsRemaining;
+
+        if (goal.monthlyContribution < requiredMonthly * 0.85) {
+          const deficit = Math.round(requiredMonthly - goal.monthlyContribution);
+          insights.push({
+            id: `ins-goal-behind-${goal.id}`,
+            type: 'warning',
+            title: `Behind Pace: ${goal.name}`,
+            description: `To reach your goal on time, you need ${currencySymbol}${Math.round(requiredMonthly).toLocaleString()}/mo (${currencySymbol}${deficit.toLocaleString()} more than current ${currencySymbol}${goal.monthlyContribution.toLocaleString()}/mo).`,
+            amountImpact: deficit,
+            icon: 'clock',
+            color: '#F59E0B',
+            date: now.toISOString(),
+          });
+        } else if (goal.monthlyContribution >= requiredMonthly) {
+          insights.push({
+            id: `ins-goal-ontrack-${goal.id}`,
+            type: 'achievement',
+            title: `On Track: ${goal.name}`,
+            description: `At ${currencySymbol}${goal.monthlyContribution.toLocaleString()}/mo, you are on track to reach ${goal.name} by ${targetDate.toLocaleDateString('default', { month: 'short', year: 'numeric' })}!`,
+            icon: 'check',
+            color: '#10B981',
+            date: now.toISOString(),
+          });
+        }
+      }
+    }
+
+    // 8. Month-over-month category spikes (>25% increase and >= ₹1,000 difference)
+    const prevBreakdowns = FinancialCalculationsService.calculateCategoryBreakdown(
+      transactions,
+      prevMonthStart,
+      prevMonthEnd
+    );
+    for (const currCat of breakdowns) {
+      const prevCat = prevBreakdowns.find((p) => p.categoryId === currCat.categoryId);
+      if (prevCat && prevCat.amount > 0) {
+        const pctIncrease = Math.round(((currCat.amount - prevCat.amount) / prevCat.amount) * 100);
+        const diffAmount = currCat.amount - prevCat.amount;
+        if (pctIncrease >= 25 && diffAmount >= 1000) {
+          insights.push({
+            id: `ins-spike-${currCat.categoryId}`,
+            type: 'warning',
+            title: `Spike in ${currCat.categoryName}`,
+            description: `Spending in ${currCat.categoryName} is up ${pctIncrease}% (${currencySymbol}${diffAmount.toLocaleString()} more than last month).`,
+            amountImpact: diffAmount,
+            icon: 'trending-up',
+            color: '#EF4444',
+            date: now.toISOString(),
+            filterCriteria: { categoryId: currCat.categoryId },
+          });
+        }
+      }
+    }
+
+    // 9. No-spend streak (consecutive recent days with zero discretionary expense)
+    const currentMonthExpenses = transactions.filter((tx) => {
+      if (tx.type !== 'expense') return false;
+      const d = new Date(tx.date);
+      return d >= startOfMonth && d <= now;
+    });
+
+    const expenseDates = new Set(
+      currentMonthExpenses.map((tx) => new Date(tx.date).toISOString().split('T')[0])
+    );
+
+    let streakDays = 0;
+    // Check backwards from yesterday
+    for (let i = 1; i <= Math.min(14, now.getDate() - 1); i++) {
+      const checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const iso = checkDate.toISOString().split('T')[0];
+      if (!expenseDates.has(iso)) {
+        streakDays++;
+      } else {
+        break;
+      }
+    }
+
+    if (streakDays >= 2) {
+      insights.push({
+        id: 'ins-no-spend-streak',
+        type: 'achievement',
+        title: `🔥 ${streakDays}-Day No-Spend Streak!`,
+        description: `You have gone ${streakDays} consecutive days without discretionary spending. Outstanding self-control!`,
+        icon: 'zap',
+        color: '#10B981',
+        date: now.toISOString(),
+      });
+    }
+
+    // 10. Outlier transaction flags (> 3x category median and >= ₹2,000)
+    for (const cat of breakdowns) {
+      const catExpenses = currentMonthExpenses
+        .filter((tx) => tx.categoryId === cat.categoryId)
+        .map((tx) => Number(tx.amount) || 0)
+        .sort((a, b) => a - b);
+
+      if (catExpenses.length >= 3) {
+        const mid = Math.floor(catExpenses.length / 2);
+        const median =
+          catExpenses.length % 2 !== 0
+            ? catExpenses[mid]
+            : (catExpenses[mid - 1] + catExpenses[mid]) / 2;
+
+        if (median > 0) {
+          const outliers = currentMonthExpenses.filter(
+            (tx) =>
+              tx.categoryId === cat.categoryId &&
+              tx.amount >= 2000 &&
+              tx.amount >= median * 3
+          );
+
+          for (const outTx of outliers) {
+            insights.push({
+              id: `ins-outlier-${outTx.id}`,
+              type: 'tip',
+              title: `Unusual Expense: ${outTx.title}`,
+              description: `This ${currencySymbol}${outTx.amount.toLocaleString()} transaction is ${Math.round((outTx.amount / median) * 10) / 10}x higher than your usual ${cat.categoryName} expense.`,
+              amountImpact: outTx.amount,
+              icon: 'alert-circle',
+              color: '#F59E0B',
+              date: now.toISOString(),
+              filterCriteria: { transactionIds: [outTx.id], categoryId: cat.categoryId },
+            });
+          }
+        }
       }
     }
 

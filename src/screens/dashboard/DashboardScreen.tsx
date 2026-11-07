@@ -19,6 +19,7 @@ import { UpcomingPaymentCard } from '../../components/financial/UpcomingPaymentC
 import { FinancialInsightCard } from '../../components/financial/FinancialInsightCard';
 import { TransactionItem } from '../../components/financial/TransactionItem';
 import { PendingDetectedTransactionsBanner } from '../../components/financial/PendingDetectedTransactionsBanner';
+import { SafeToSpendCard } from '../../components/financial/SafeToSpendCard';
 import { AddTransactionModal } from '../../components/modals/AddTransactionModal';
 import { TransferModal } from '../../components/modals/TransferModal';
 import { AddGoalFundsModal } from '../../components/modals/AddGoalFundsModal';
@@ -117,6 +118,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         {/* Balance Card */}
         <View style={{ marginTop: spacing.sm }}>
           <BalanceCard />
+        </View>
+
+        {/* Safe to Spend / Cash-Flow Forecast (F3.1) */}
+        <View style={{ marginTop: spacing.md }}>
+          <SafeToSpendCard />
         </View>
 
         {/* Pending Detected Payments */}
@@ -279,7 +285,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           <View style={{ marginTop: spacing.sm }}>
             {insights.length > 0 ? (
               insights.slice(0, 2).map((ins) => (
-                <FinancialInsightCard key={ins.id} insight={ins} />
+                <FinancialInsightCard
+                  key={ins.id}
+                  insight={ins}
+                  onPress={(insight) => {
+                    if (insight.filterCriteria?.categoryId) {
+                      navigation.navigate('Transactions', { filterCategoryId: insight.filterCriteria.categoryId });
+                    } else {
+                      navigation.navigate('Transactions');
+                    }
+                  }}
+                />
               ))
             ) : (
               <View

@@ -17,20 +17,30 @@ import { AddBudgetModal } from '../../components/modals/AddBudgetModal';
 import { useAppStore } from '../../store/useAppStore';
 import { Budget } from '../../types';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
+import { BudgetService } from '../../services/budgetService';
 import { Feather } from '@expo/vector-icons';
 
 export const BudgetsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
   const budgets = useAppStore((state) => state.budgets);
   const transactions = useAppStore((state) => state.transactions);
+  const savingsGoals = useAppStore((state) => state.savingsGoals);
+  const overview = useAppStore((state) => state.overview);
   const deleteBudget = useAppStore((state) => state.deleteBudget);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
 
+  // Zero-Based Budgeting calculation (F3.2)
+  const zeroBased = BudgetService.calculateZeroBasedBudgeting(
+    overview.totalIncome,
+    budgets,
+    savingsGoals
+  );
+
   // Overall totals across budgets
-  const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
+  const totalBudgeted = budgets.reduce((sum, b) => sum + BudgetService.getEffectiveLimit(b), 0);
   const totalBudgetSpent = budgets.reduce((sum, b) => {
     const perf = FinancialCalculationsService.calculateBudgetPerformance(b, transactions);
     return sum + perf.spent;
@@ -79,19 +89,78 @@ export const BudgetsScreen: React.FC = () => {
           if (budgets.length === 0) return null;
           return (
             <View style={{ marginBottom: spacing.lg }}>
-            {/* Master Summary Card */}
-            <View
-              style={[
-                styles.masterCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: radius.xxl,
-                  padding: spacing.lg,
-                  ...shadows.soft,
-                },
-              ]}
-            >
+              {/* Zero-Based Budgeting Banner (F3.2) */}
+              <View
+                style={[
+                  styles.zeroBasedCard,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    padding: spacing.md,
+                    marginBottom: spacing.md,
+                  },
+                ]}
+              >
+                <View style={styles.cardTop}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Feather
+                      name={zeroBased.isBalanced ? 'check-circle' : 'pie-chart'}
+                      size={18}
+                      color={zeroBased.isBalanced ? colors.success : colors.primary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <AppText variant="subtitle2" weight="700">
+                      Zero-Based Budget
+                    </AppText>
+                  </View>
+                  <Badge
+                    label={zeroBased.isBalanced ? 'Balanced' : `${currencySymbol}${zeroBased.unassignedIncome.toLocaleString()} Unassigned`}
+                    variant={zeroBased.isBalanced ? 'success' : zeroBased.unassignedIncome > 0 ? 'warning' : 'error'}
+                  />
+                </View>
+
+                <View style={[styles.zeroBasedRow, { marginTop: spacing.sm }]}>
+                  <View>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Monthly Income
+                    </AppText>
+                    <AppText variant="body2" weight="700">
+                      {FinancialCalculationsService.formatCurrency(zeroBased.monthlyIncome, currencySymbol)}
+                    </AppText>
+                  </View>
+                  <View>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Assigned to Budgets
+                    </AppText>
+                    <AppText variant="body2" weight="700">
+                      {FinancialCalculationsService.formatCurrency(zeroBased.totalAssignedToBudgets, currencySymbol)}
+                    </AppText>
+                  </View>
+                  <View>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Savings Target
+                    </AppText>
+                    <AppText variant="body2" weight="700">
+                      {FinancialCalculationsService.formatCurrency(zeroBased.totalAssignedToGoals, currencySymbol)}
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+
+              {/* Master Summary Card */}
+              <View
+                style={[
+                  styles.masterCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: radius.xxl,
+                    padding: spacing.lg,
+                    ...shadows.soft,
+                  },
+                ]}
+              >
               <View style={styles.cardTop}>
                 <View>
                   <AppText variant="caption" color={colors.textSecondary}>
@@ -163,12 +232,29 @@ export const BudgetsScreen: React.FC = () => {
                     size={16}
                     containerSize={36}
                   />
-                  <View style={{ marginLeft: spacing.sm }}>
-                    <AppText variant="subtitle2" weight="700">
-                      {item.name}
-                    </AppText>
+                  <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <AppText variant="subtitle2" weight="700">
+                        {item.name}
+                      </AppText>
+                      {item.rolloverEnabled && (
+                        <View
+                          style={{
+                            backgroundColor: colors.primary + '15',
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                            marginLeft: 6,
+                          }}
+                        >
+                          <AppText variant="caption" color={colors.primary} weight="700">
+                            Rollover +{currencySymbol}{item.rolloverAmount || 0}
+                          </AppText>
+                        </View>
+                      )}
+                    </View>
                     <AppText variant="caption" color={colors.textSecondary}>
-                      Limit: {FinancialCalculationsService.formatCurrency(item.amount, currencySymbol)} • {item.period}
+                      Limit: {FinancialCalculationsService.formatCurrency(BudgetService.getEffectiveLimit(item), currencySymbol)} • {item.period}
                     </AppText>
                   </View>
                 </View>
@@ -264,6 +350,15 @@ const styles = StyleSheet.create({
   masterCard: {
     width: '100%',
     borderWidth: 1,
+  },
+  zeroBasedCard: {
+    width: '100%',
+    borderWidth: 1,
+  },
+  zeroBasedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   cardTop: {
     flexDirection: 'row',

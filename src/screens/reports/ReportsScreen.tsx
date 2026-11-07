@@ -58,6 +58,16 @@ export const ReportsScreen: React.FC = () => {
   const totalSavings = FinancialCalculationsService.calculateTotalSavingsAllocated(transactions, start, end);
   const savingsRate = FinancialCalculationsService.calculateSavingsRate(totalIncome, totalSavings);
 
+  // Period-over-period comparison (F3.7)
+  const durationMs = Math.max(24 * 60 * 60 * 1000, end.getTime() - start.getTime());
+  const priorStart = new Date(start.getTime() - durationMs);
+  const priorEnd = new Date(start.getTime());
+
+  const priorExpenses = FinancialCalculationsService.calculateTotalExpenses(transactions, priorStart, priorEnd);
+  const priorIncome = FinancialCalculationsService.calculateTotalIncome(transactions, priorStart, priorEnd);
+  const expenseGrowth = FinancialCalculationsService.calculateGrowthPercentage(totalExpenses, priorExpenses);
+  const incomeGrowth = FinancialCalculationsService.calculateGrowthPercentage(totalIncome, priorIncome);
+
   const netSavings = totalIncome - totalExpenses - totalSavings;
   const availableBalance = FinancialCalculationsService.calculateTotalAccountBalance(accounts);
   const openingBalance = availableBalance - netSavings;
@@ -211,6 +221,67 @@ export const ReportsScreen: React.FC = () => {
           </AppText>
         </View>
 
+        {/* Period-over-Period Comparison Card (F3.7) */}
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: radius.xxl,
+              padding: spacing.lg,
+              marginTop: spacing.lg,
+              ...shadows.soft,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+            <Feather name="bar-chart-2" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+            <AppText variant="subtitle1" weight="700">
+              Period Comparison
+            </AppText>
+          </View>
+          <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.md }}>
+            Compared to prior equivalent {period} window
+          </AppText>
+
+          <View style={styles.comparisonGrid}>
+            <View style={[styles.comparisonBox, { backgroundColor: colors.surfaceVariant, borderRadius: radius.lg, padding: spacing.md }]}>
+              <AppText variant="caption" color={colors.textSecondary}>
+                Expense Delta
+              </AppText>
+              <AppText
+                variant="subtitle1"
+                weight="800"
+                color={expenseGrowth <= 0 ? colors.success : colors.error}
+                style={{ marginVertical: 2 }}
+              >
+                {expenseGrowth > 0 ? `+${expenseGrowth}%` : `${expenseGrowth}%`}
+              </AppText>
+              <AppText variant="caption" color={colors.textMuted}>
+                Prior: {FinancialCalculationsService.formatCurrency(priorExpenses, currencySymbol)}
+              </AppText>
+            </View>
+
+            <View style={[styles.comparisonBox, { backgroundColor: colors.surfaceVariant, borderRadius: radius.lg, padding: spacing.md, marginLeft: spacing.sm }]}>
+              <AppText variant="caption" color={colors.textSecondary}>
+                Income Delta
+              </AppText>
+              <AppText
+                variant="subtitle1"
+                weight="800"
+                color={incomeGrowth >= 0 ? colors.success : colors.error}
+                style={{ marginVertical: 2 }}
+              >
+                {incomeGrowth > 0 ? `+${incomeGrowth}%` : `${incomeGrowth}%`}
+              </AppText>
+              <AppText variant="caption" color={colors.textMuted}>
+                Prior: {FinancialCalculationsService.formatCurrency(priorIncome, currencySymbol)}
+              </AppText>
+            </View>
+          </View>
+        </View>
+
         {/* Cash Flow Statement */}
         <View
           style={[
@@ -326,6 +397,12 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     borderWidth: 1,
+  },
+  comparisonGrid: {
+    flexDirection: 'row',
+  },
+  comparisonBox: {
+    flex: 1,
   },
   comparisonBars: {
     marginTop: 16,

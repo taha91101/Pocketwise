@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { FinancialInsight } from '../../types';
 import { AppText } from '../common/AppText';
@@ -7,13 +7,19 @@ import { Feather } from '@expo/vector-icons';
 
 export interface FinancialInsightCardProps {
   insight: FinancialInsight;
+  onPress?: (insight: FinancialInsight) => void;
 }
 
-export const FinancialInsightCard: React.FC<FinancialInsightCardProps> = ({ insight }) => {
+export const FinancialInsightCard: React.FC<FinancialInsightCardProps> = ({ insight, onPress }) => {
   const { colors, radius, spacing, shadows } = useTheme();
+  const hasFilterAction = Boolean(insight.filterCriteria && onPress);
+
+  const CardWrapper = hasFilterAction ? TouchableOpacity : View;
 
   return (
-    <View
+    <CardWrapper
+      activeOpacity={0.7}
+      onPress={hasFilterAction ? () => onPress?.(insight) : undefined}
       style={[
         styles.container,
         {
@@ -48,9 +54,18 @@ export const FinancialInsightCard: React.FC<FinancialInsightCardProps> = ({ insi
           >
             {insight.description}
           </AppText>
+
+          {hasFilterAction && (
+            <View style={styles.actionPill}>
+              <AppText variant="caption" color={colors.primary} weight="700">
+                View transactions
+              </AppText>
+              <Feather name="arrow-right" size={12} color={colors.primary} style={{ marginLeft: 4 }} />
+            </View>
+          )}
         </View>
       </View>
-    </View>
+    </CardWrapper>
   );
 };
 
@@ -73,5 +88,10 @@ const styles = StyleSheet.create({
   },
   textCol: {
     flex: 1,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
   },
 });

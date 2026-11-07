@@ -8,8 +8,8 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 | Category | Count | Status Assessment |
 | :--- | :---: | :--- |
-| **Fully Implemented Features** | 25 | 100% production-ready, verified with 138 unit tests across 12 suites |
-| **Partially Implemented Features** | 0 | All Phase 1 & Phase 2 roadmap deliverables complete |
+| **Fully Implemented Features** | 32 | 100% production-ready, verified with 167 unit tests across 18 suites |
+| **Partially Implemented Features** | 0 | All Phase 1, Phase 2, and Phase 3 roadmap deliverables complete |
 | **Unused / Dead Code Components** | 0 | Dead code purged during Phase 0 baseline remediation |
 | **Technical Debt & Type Issues** | 0 | Strict typecheck (0 errors) and automated CI pipeline |
 | **Known Platform Limitations** | 2 | Hardware/OS constraints (iOS notification restrictions, Expo Go) |
@@ -88,7 +88,49 @@ This document provides a candid, evidence-based architectural audit of the Pocke
 
 ---
 
-### 2.3 Unused Components & Dead Code (Remediated in v1.0.1)
+### 2.4 Phase 3 (v1.3) Planning and Insight Deliverables (COMPLETED)
+
+1. **F3.1 Cash-Flow Forecast & Safe-to-Spend**:
+   - [forecastService.ts](file:///D:/Pocketwise/src/services/forecastService.ts) calculating liquid balance across bank/cash/wallets, remaining calendar days, committed recurring bills, and 30-day discretionary spend velocity.
+   - `SafeToSpendCard` on Dashboard displaying safe daily limit, projected month-end balance, and low-balance safety reserve warning banner.
+   - Verified with 6 unit tests in `src/__tests__/forecastService.test.ts` (accuracy within 10% tolerance).
+
+2. **F3.2 Budget Upgrades (Rollover & Zero-Based Budgeting)**:
+   - [budgetService.ts](file:///D:/Pocketwise/src/services/budgetService.ts) computing opt-in unspent rollover balances and monthly caps.
+   - Zero-based budgeting header ("Every rupee has a job") balancing total monthly income against category budgets and savings goals.
+   - 3-Month spend suggestions with quick-fill chips in `AddBudgetModal`.
+   - Verified with 7 unit tests in `src/__tests__/budgetUpgrades.test.ts`.
+
+3. **F3.3 Recurring Intelligence & Subscription Watchdog**:
+   - [subscriptionService.ts](file:///D:/Pocketwise/src/services/subscriptionService.ts) auto-detecting recurring subscriptions from repeated transaction cadences (weekly/monthly ~30 days).
+   - Price increase detection flagging price jumps between baseline and recent transactions.
+   - Duplicate subscription warnings for overlapping streaming/entertainment services.
+   - Annual cost rollup summary card on `RecurringScreen`.
+   - Verified with 4 unit tests in `src/__tests__/subscriptionIntelligence.test.ts`.
+
+4. **F3.4 Smarter Rule-Based Insights**:
+   - Expanded [insightsService.ts](file:///D:/Pocketwise/src/services/insightsService.ts): month-over-month category spikes (>25% increase & >= ₹1,000 difference), no-spend streak achievements, savings goal pace warnings (behind pace vs on track), and statistical outlier transaction flags (>3x category median).
+   - Actionable `filterCriteria` on `FinancialInsightCard` allowing direct navigation to filtered transactions.
+   - Verified with 5 unit tests in `src/__tests__/smarterInsights.test.ts`.
+
+5. **F3.5 Net Worth & Debt (Liabilities Management)**:
+   - `Liability` model tracking credit cards, personal loans, and consumer EMIs with payment due dates and statement cycles.
+   - Estimated Net Worth calculation (`Assets - Liabilities`) and card on `AccountsScreen`.
+   - `AddLiabilityModal.tsx` and `RecordDebtPaymentModal.tsx` for tracking debt payoff progress.
+   - Verified with 4 unit tests in `src/__tests__/liabilitiesAndNetWorth.test.ts`.
+
+6. **F3.6 Shared Expenses (Split with Friends)**:
+   - `SharedExpense` model tracking lent/borrowed balances with friends.
+   - `SplitWithFriendsModal.tsx` integrated into `TransactionDetailScreen.tsx` with 50/50 split calculators and local settlement.
+   - Verified with 3 unit tests in `src/__tests__/sharedExpenses.test.ts`.
+
+7. **F3.7 Reports & Period-over-Period Comparison**:
+   - Period-over-Period comparison card on `ReportsScreen.tsx` with expense/income percentage deltas against equivalent prior windows.
+   - Verified in automated test suites and component rendering.
+
+---
+
+### 2.5 Unused Components & Dead Code (Remediated in v1.0.1)
 
 During the Phase 0 audit, automated usage scans across all TypeScript and TSX files revealed two components defined in `src/components/common/` that had zero imports and zero usages across the entire application:
 1. `AppHeader.tsx`: Deleted in Phase 0.

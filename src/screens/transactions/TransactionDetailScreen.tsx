@@ -17,6 +17,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { Feather } from '@expo/vector-icons';
 import { EditTransactionModal } from '../../components/modals/EditTransactionModal';
+import { SplitWithFriendsModal } from '../../components/modals/SplitWithFriendsModal';
 import { pickReceiptFromGallery, captureReceiptWithCamera } from '../../services/receiptService';
 
 export interface TransactionDetailScreenProps {
@@ -32,6 +33,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
   const { transactionId } = route.params || {};
 
   const transactions = useAppStore((state) => state.transactions);
+  const sharedExpenses = useAppStore((state) => state.sharedExpenses);
   const deleteTransaction = useAppStore((state) => state.deleteTransaction);
   const duplicateTransaction = useAppStore((state) => state.duplicateTransaction);
   const updateTransaction = useAppStore((state) => state.updateTransaction);
@@ -40,6 +42,7 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewingFullReceipt, setIsViewingFullReceipt] = useState(false);
+  const [isSplitWithFriendsModalOpen, setIsSplitWithFriendsModalOpen] = useState(false);
 
   const transaction = transactions.find((t) => t.id === transactionId);
 
@@ -456,6 +459,16 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 
         {/* Actions */}
         <View style={{ marginTop: spacing.xl }}>
+          {transaction.type === 'expense' && (
+            <AppButton
+              title="Split with Friends"
+              variant="outline"
+              iconName="users"
+              onPress={() => setIsSplitWithFriendsModalOpen(true)}
+              fullWidth
+              style={{ marginBottom: spacing.sm }}
+            />
+          )}
           <AppButton
             title="Edit Transaction"
             variant="primary"
@@ -486,6 +499,12 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
         visible={isEditModalOpen}
         transaction={transaction}
         onClose={() => setIsEditModalOpen(false)}
+      />
+
+      <SplitWithFriendsModal
+        visible={isSplitWithFriendsModalOpen}
+        transaction={transaction}
+        onClose={() => setIsSplitWithFriendsModalOpen(false)}
       />
 
       <ConfirmDialog

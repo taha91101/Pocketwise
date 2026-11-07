@@ -15,11 +15,14 @@ import { AppText } from '../../components/common/AppText';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 import { CategoryIcon } from '../../components/common/CategoryIcon';
+import { ProgressBar } from '../../components/common/ProgressBar';
 import { TransferModal } from '../../components/modals/TransferModal';
+import { AddLiabilityModal } from '../../components/modals/AddLiabilityModal';
+import { RecordDebtPaymentModal } from '../../components/modals/RecordDebtPaymentModal';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAppStore } from '../../store/useAppStore';
-import { Account, AccountType } from '../../types';
+import { Account, AccountType, Liability } from '../../types';
 import { FinancialCalculationsService } from '../../services/financialCalculations';
 import { Feather } from '@expo/vector-icons';
 
@@ -28,13 +31,19 @@ export const AccountsScreen: React.FC = () => {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const accounts = useAppStore((state) => state.accounts);
+  const liabilities = useAppStore((state) => state.liabilities);
+  const overview = useAppStore((state) => state.overview);
   const addAccount = useAppStore((state) => state.addAccount);
   const deleteAccount = useAppStore((state) => state.deleteAccount);
+  const deleteLiability = useAppStore((state) => state.deleteLiability);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
+  const [isAddLiabilityModalOpen, setIsAddLiabilityModalOpen] = useState(false);
+  const [activeLiabilityForPayment, setActiveLiabilityForPayment] = useState<Liability | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [liabilityToDelete, setLiabilityToDelete] = useState<Liability | null>(null);
 
   // New Account form state
   const [newAccName, setNewAccName] = useState('');
@@ -142,45 +151,76 @@ export const AccountsScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={() => (
-          <View style={{ marginBottom: spacing.lg }}>
-            {/* Total Balance Card */}
-            <View
-              style={[
-                styles.netWorthCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: radius.xxl,
-                  padding: spacing.xl,
-                  ...shadows.soft,
-                },
-              ]}
-            >
-              <AppText variant="caption" color={colors.textSecondary}>
-                Net Available Balance Across All Accounts
-              </AppText>
-              <AppText variant="amountLarge" weight="800" style={{ marginTop: spacing.xs }}>
-                {FinancialCalculationsService.formatCurrency(totalBalance, currencySymbol)}
-              </AppText>
+        ListHeaderComponent={() => {
+          const totalAssets = totalBalance + (overview.totalSavings || 0);
+          const totalLiabilities = overview.totalLiabilities || 0;
+          const netWorth = overview.netWorth !== undefined ? overview.netWorth : totalAssets - totalLiabilities;
 
-              <View style={[styles.transferBanner, { marginTop: spacing.md, borderTopColor: colors.borderLight }]}>
-                <AppButton
-                  title="Transfer Between Accounts"
-                  variant="outline"
-                  iconName="refresh-cw"
-                  size="sm"
-                  onPress={() => setIsTransferModalOpen(true)}
-                  fullWidth
-                />
+          return (
+            <View style={{ marginBottom: spacing.lg }}>
+              {/* Net Worth Card (F3.5) */}
+              <View
+                style={[
+                  styles.netWorthCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderRadius: radius.xxl,
+                    padding: spacing.xl,
+                    ...shadows.soft,
+                  },
+                ]}
+              >
+                <AppText variant="caption" color={colors.textSecondary}>
+                  ESTIMATED NET WORTH
+                </AppText>
+                <AppText
+                  variant="amountLarge"
+                  weight="800"
+                  color={netWorth >= 0 ? colors.textPrimary : colors.error}
+                  style={{ marginTop: spacing.xs }}
+                >
+                  {FinancialCalculationsService.formatCurrency(netWorth, currencySymbol)}
+                </AppText>
+
+                <View style={[styles.netWorthBreakdown, { marginTop: spacing.md, paddingTop: spacing.md, borderTopColor: colors.borderLight }]}>
+                  <View style={styles.netWorthCol}>
+                    <AppText variant="caption" color={colors.textMuted}>
+                      Total Assets
+                    </AppText>
+                    <AppText variant="subtitle2" weight="700" color={colors.success}>
+                      {FinancialCalculationsService.formatCurrency(totalAssets, currencySymbol)}
+                    </AppText>
+                  </View>
+                  <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
+                  <View style={styles.netWorthCol}>
+                    <AppText variant="caption" color={colors.textMuted}>
+                      Total Liabilities
+                    </AppText>
+                    <AppText variant="subtitle2" weight="700" color={totalLiabilities > 0 ? colors.error : colors.textPrimary}>
+                      {FinancialCalculationsService.formatCurrency(totalLiabilities, currencySymbol)}
+                    </AppText>
+                  </View>
+                </View>
+
+                <View style={[styles.transferBanner, { marginTop: spacing.md, borderTopColor: colors.borderLight }]}>
+                  <AppButton
+                    title="Transfer Between Accounts"
+                    variant="outline"
+                    iconName="refresh-cw"
+                    size="sm"
+                    onPress={() => setIsTransferModalOpen(true)}
+                    fullWidth
+                  />
+                </View>
               </View>
-            </View>
 
-            <AppText variant="subtitle1" weight="700" style={{ marginTop: spacing.xl, marginBottom: spacing.xs }}>
-              Your Accounts ({accounts.length})
-            </AppText>
-          </View>
-        )}
+              <AppText variant="subtitle1" weight="700" style={{ marginTop: spacing.xl, marginBottom: spacing.xs }}>
+                Your Accounts ({accounts.length})
+              </AppText>
+            </View>
+          );
+        }}
         renderItem={({ item }) => (
           <View
             style={[
@@ -230,6 +270,178 @@ export const AccountsScreen: React.FC = () => {
                 {FinancialCalculationsService.formatCurrency(item.balance, currencySymbol)}
               </AppText>
             </View>
+          </View>
+        )}
+        ListFooterComponent={() => (
+          <View style={{ marginTop: spacing.xl }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+              <AppText variant="subtitle1" weight="700">
+                Liabilities & Debt ({liabilities.length})
+              </AppText>
+              <TouchableOpacity
+                onPress={() => setIsAddLiabilityModalOpen(true)}
+                style={{ flexDirection: 'row', alignItems: 'center' }}
+              >
+                <Feather name="plus-circle" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+                <AppText variant="caption" weight="700" color={colors.primary}>
+                  Add Debt
+                </AppText>
+              </TouchableOpacity>
+            </View>
+
+            {liabilities.length === 0 ? (
+              <View
+                style={[
+                  styles.emptyLiabilitiesBox,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    padding: spacing.lg,
+                    alignItems: 'center',
+                  },
+                ]}
+              >
+                <Feather name="shield" size={24} color={colors.success} style={{ marginBottom: 6 }} />
+                <AppText variant="subtitle2" weight="700" color={colors.textPrimary}>
+                  Debt-Free Mode
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} align="center" style={{ marginTop: 2 }}>
+                  No outstanding liabilities recorded. Add credit cards or loans to monitor utilization & payoff goals.
+                </AppText>
+              </View>
+            ) : (
+              liabilities.map((lia) => {
+                const isPaid = lia.isPaidOff || lia.remainingAmount <= 0;
+                const progressPct =
+                  lia.totalAmount > 0
+                    ? Math.min(100, Math.round(((lia.totalAmount - lia.remainingAmount) / lia.totalAmount) * 100))
+                    : 100;
+                const utilizationPct =
+                  lia.creditLimit && lia.creditLimit > 0
+                    ? Math.min(100, Math.round((lia.remainingAmount / lia.creditLimit) * 100))
+                    : 0;
+
+                return (
+                  <View
+                    key={lia.id}
+                    style={[
+                      styles.liabilityCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: isPaid ? colors.success : colors.border,
+                        borderRadius: radius.xl,
+                        padding: spacing.md,
+                        marginBottom: spacing.md,
+                        ...shadows.soft,
+                      },
+                    ]}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <CategoryIcon
+                          iconName={lia.type === 'credit_card' ? 'credit-card' : 'briefcase'}
+                          color={isPaid ? colors.success : colors.error}
+                          size={16}
+                          containerSize={36}
+                        />
+                        <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <AppText variant="subtitle2" weight="700">
+                              {lia.name}
+                            </AppText>
+                            {isPaid && (
+                              <View
+                                style={{
+                                  backgroundColor: colors.success + '20',
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  marginLeft: 6,
+                                }}
+                              >
+                                <AppText variant="caption" color={colors.success} weight="700">
+                                  PAID OFF
+                                </AppText>
+                              </View>
+                            )}
+                          </View>
+                          <AppText variant="caption" color={colors.textSecondary}>
+                            {lia.type === 'credit_card'
+                              ? `Statement Day: ${lia.statementDate || 'N/A'} • Due: ${lia.dueDate}`
+                              : `Due: ${lia.dueDate} • Min: ${currencySymbol}${lia.minimumMonthlyPayment.toLocaleString()}`}
+                          </AppText>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => setLiabilityToDelete(lia)}
+                        style={{ padding: 6 }}
+                      >
+                        <Feather name="trash-2" size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Progress / Utilization Bar */}
+                    <View style={{ marginTop: spacing.md }}>
+                      {lia.type === 'credit_card' && lia.creditLimit ? (
+                        <>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <AppText variant="caption" color={colors.textMuted}>
+                              Utilization: {utilizationPct}%
+                            </AppText>
+                            <AppText variant="caption" color={colors.textMuted}>
+                              Limit: {currencySymbol}{lia.creditLimit.toLocaleString()}
+                            </AppText>
+                          </View>
+                          <ProgressBar progress={utilizationPct} height={6} />
+                        </>
+                      ) : (
+                        <>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <AppText variant="caption" color={colors.textMuted}>
+                              Payoff Progress: {progressPct}%
+                            </AppText>
+                            <AppText variant="caption" color={colors.textMuted}>
+                              Total: {currencySymbol}{lia.totalAmount.toLocaleString()}
+                            </AppText>
+                          </View>
+                          <ProgressBar progress={progressPct} height={6} />
+                        </>
+                      )}
+                    </View>
+
+                    {/* Balance and Action row */}
+                    <View style={[styles.cardHeader, { marginTop: spacing.md, paddingTop: spacing.xs }]}>
+                      <View>
+                        <AppText variant="caption" color={colors.textMuted}>
+                          Outstanding Balance
+                        </AppText>
+                        <AppText variant="subtitle1" weight="800" color={isPaid ? colors.success : colors.error}>
+                          {FinancialCalculationsService.formatCurrency(lia.remainingAmount, currencySymbol)}
+                        </AppText>
+                      </View>
+
+                      {!isPaid && (
+                        <TouchableOpacity
+                          onPress={() => setActiveLiabilityForPayment(lia)}
+                          style={{
+                            backgroundColor: colors.primary,
+                            paddingHorizontal: 14,
+                            paddingVertical: 7,
+                            borderRadius: radius.md,
+                          }}
+                        >
+                          <AppText variant="caption" weight="700" color="#FFFFFF">
+                            Pay / Reduce
+                          </AppText>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
         ListEmptyComponent={() => (
@@ -362,6 +574,32 @@ export const AccountsScreen: React.FC = () => {
         onConfirm={handleDeleteAccount}
         onCancel={() => setAccountToDelete(null)}
       />
+
+      <AddLiabilityModal
+        visible={isAddLiabilityModalOpen}
+        onClose={() => setIsAddLiabilityModalOpen(false)}
+      />
+
+      <RecordDebtPaymentModal
+        visible={activeLiabilityForPayment !== null}
+        liability={activeLiabilityForPayment}
+        onClose={() => setActiveLiabilityForPayment(null)}
+      />
+
+      <ConfirmDialog
+        visible={liabilityToDelete !== null}
+        title="Delete Liability?"
+        message={`Are you sure you want to delete ${liabilityToDelete?.name}?`}
+        confirmText="Delete"
+        isDestructive
+        onConfirm={async () => {
+          if (liabilityToDelete) {
+            await deleteLiability(liabilityToDelete.id);
+            setLiabilityToDelete(null);
+          }
+        }}
+        onCancel={() => setLiabilityToDelete(null)}
+      />
     </SafeAreaView>
   );
 };
@@ -382,6 +620,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   netWorthCard: {
+    width: '100%',
+    borderWidth: 1,
+  },
+  netWorthBreakdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+  },
+  netWorthCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  dividerVertical: {
+    width: 1,
+    height: 28,
+  },
+  emptyLiabilitiesBox: {
+    width: '100%',
+    borderWidth: 1,
+  },
+  liabilityCard: {
     width: '100%',
     borderWidth: 1,
   },

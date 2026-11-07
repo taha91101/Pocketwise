@@ -1,4 +1,4 @@
-import { Account, Budget, FinancialOverview, SavingsGoal, Transaction } from '../types';
+import { Account, Budget, FinancialOverview, Liability, SavingsGoal, Transaction } from '../types';
 
 export class FinancialCalculationsService {
   /**
@@ -102,7 +102,8 @@ export class FinancialCalculationsService {
     accounts: Account[],
     transactions: Transaction[],
     goals: SavingsGoal[],
-    monthDate: Date = new Date()
+    monthDate: Date = new Date(),
+    liabilities: Liability[] = []
   ): FinancialOverview {
     const startOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const endOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59);
@@ -122,6 +123,12 @@ export class FinancialCalculationsService {
     const availableBalance = this.calculateTotalAccountBalance(accounts);
     const totalGoalSavings = this.calculateTotalGoalSavings(goals);
 
+    const totalLiabilities = (liabilities || [])
+      .filter((l) => !l.isPaidOff)
+      .reduce((sum, l) => sum + (Number(l.remainingAmount) || 0), 0);
+
+    const netWorth = availableBalance + totalGoalSavings - totalLiabilities;
+
     const netSavingsRate = this.calculateSavingsRate(totalIncome, totalSavingsAllocated);
     const monthOverMonthGrowth = this.calculateGrowthPercentage(currentNet, prevNet);
 
@@ -137,6 +144,8 @@ export class FinancialCalculationsService {
       monthOverMonthGrowth,
       openingBalance,
       closingBalance,
+      totalLiabilities,
+      netWorth,
     };
   }
 

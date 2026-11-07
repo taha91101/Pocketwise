@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -16,6 +17,7 @@ import { AppInput } from '../common/AppInput';
 import { AppButton } from '../common/AppButton';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { useAppStore } from '../../store/useAppStore';
+import { BudgetService } from '../../services/budgetService';
 import { Feather } from '@expo/vector-icons';
 
 export interface AddBudgetModalProps {
@@ -28,6 +30,7 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const categories = useAppStore((state) => state.categories);
+  const transactions = useAppStore((state) => state.transactions);
   const addBudget = useAppStore((state) => state.addBudget);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
 
@@ -36,9 +39,18 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
   const [categoryId, setCategoryId] = useState('');
   const [period, setPeriod] = useState<'monthly' | 'weekly' | 'custom'>('monthly');
   const [alertThreshold, setAlertThreshold] = useState('80');
+  const [rolloverEnabled, setRolloverEnabled] = useState(false);
+  const [overallMonthlyCap, setOverallMonthlyCap] = useState('');
   const [error, setError] = useState('');
 
   const expenseCategories = categories.filter((c) => c.type === 'expense' || c.type === 'both');
+
+  // Compute 3-month suggestions for the categories
+  const suggestions = React.useMemo(() => {
+    return BudgetService.generateBudgetSuggestions(transactions, categories);
+  }, [transactions, categories]);
+
+  const activeSuggestion = suggestions.find((s) => s.categoryId === categoryId);
 
   React.useEffect(() => {
     if (visible) {
@@ -47,6 +59,8 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
       setError('');
       setPeriod('monthly');
       setAlertThreshold('80');
+      setRolloverEnabled(false);
+      setOverallMonthlyCap('');
       if (expenseCategories.length > 0) setCategoryId(expenseCategories[0].id);
     }
   }, [visible]);
@@ -65,6 +79,7 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+    const numCap = overallMonthlyCap ? parseFloat(overallMonthlyCap.replace(/,/g, '')) : undefined;
 
     await addBudget({
       name: name.trim(),
@@ -74,6 +89,8 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
       startDate,
       endDate,
       alertThreshold: parseInt(alertThreshold, 10) || 80,
+      rolloverEnabled,
+      overallMonthlyCap: numCap && !isNaN(numCap) ? numCap : undefined,
     });
 
     onClose();
@@ -128,6 +145,28 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
                   style={styles.amountInput}
                 />
               </View>
+
+              {/* 3-Month Smart Suggestion Helper */}
+              {activeSuggestion && (
+                <TouchableOpacity
+                  onPress={() => setAmount(activeSuggestion.suggestedLimit.toString())}
+                  style={[
+                    styles.suggestionPill,
+                    {
+                      backgroundColor: colors.primary + '15',
+                      borderColor: colors.primary,
+                      borderRadius: radius.md,
+                      padding: spacing.xs,
+                      marginTop: spacing.xs,
+                    },
+                  ]}
+                >
+                  <Feather name="zap" size={14} color={colors.primary} style={{ marginRight: 4 }} />
+                  <AppText variant="caption" color={colors.primary} weight="600">
+                    Suggested: {currencySymbol}{activeSuggestion.suggestedLimit.toLocaleString()} (avg {currencySymbol}{activeSuggestion.averageMonthlySpend.toLocaleString()}/mo past 3m) • Tap to fill
+                  </AppText>
+                </TouchableOpacity>
+              )}
 
               <AppInput
                 label="Budget Name"
@@ -217,6 +256,48 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({ visible, onClose
                 style={{ marginTop: spacing.md }}
               />
 
+              {/* Rollover Toggle (F3.2) */}
+              <View
+                style={[
+                  styles.toggleSection,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    borderRadius: radius.lg,
+                    padding: spacing.md,
+                    marginTop: spacing.md,
+                  },
+                ]}
+              >
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                    <AppText variant="subtitle2" weight="700">
+                      Rollover Unspent Balance
+                    </AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Carry forward unspent savings from previous month into this budget
+                    </AppText>
+                  </View>
+                  <Switch
+                    value={rolloverEnabled}
+                    onValueChange={setRolloverEnabled}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                  />
+                </View>
+
+                {rolloverEnabled && (
+                  <View style={{ marginTop: spacing.md }}>
+                    <AppInput
+                      label="Monthly Cap (Optional ₹)"
+                      placeholder="e.g. 15000 (Maximum allowed limit with rollover)"
+                      keyboardType="numeric"
+                      value={overallMonthlyCap}
+                      onChangeText={setOverallMonthlyCap}
+                      iconName="shield"
+                    />
+                  </View>
+                )}
+              </View>
+
               {error ? (
                 <AppText variant="caption" color={colors.error} style={{ marginTop: spacing.xs }}>
                   {error}
@@ -302,5 +383,19 @@ const styles = StyleSheet.create({
   bottomBtnRow: {
     flexDirection: 'row',
     marginBottom: 20,
+  },
+  suggestionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  toggleSection: {
+    marginTop: 12,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 });

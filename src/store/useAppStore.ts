@@ -13,6 +13,9 @@ import {
   DetectedTransaction,
   LearnedMerchantRule,
   DetectionDiagnosticEvent,
+  CashFlowForecast,
+  Liability,
+  SharedExpense,
 } from '../types';
 import { UPIDetectionService } from '../services/upiDetectionService';
 import { MerchantCategorizer } from '../services/upiParser';
@@ -30,6 +33,8 @@ import { StorageService } from '../storage/storageService';
 import { STORAGE_KEYS } from '../storage/keys';
 import { FinancialCalculationsService } from '../services/financialCalculations';
 import { InsightsService } from '../services/insightsService';
+import { ForecastService } from '../services/forecastService';
+import { BudgetService } from '../services/budgetService';
 import { AppExportData } from '../services/exportImportService';
 import { NotificationService } from '../services/notificationService';
 
@@ -135,6 +140,58 @@ interface AppState {
     event: Omit<DetectionDiagnosticEvent, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
   ) => Promise<void>;
   clearDiagnostics: () => Promise<void>;
+
+  // Data - Planning & Insights (Phase 3)
+  forecast: CashFlowForecast;
+  liabilities: Liability[];
+  sharedExpenses: SharedExpense[];
+
+  // Actions - Liabilities (F3.5)
+  addLiability: (liability: Omit<Liability, 'id' | 'createdAt'>) => Promise<Liability>;
+  updateLiability: (id: string, updated: Partial<Liability>) => Promise<boolean>;
+  deleteLiability: (id: string) => Promise<boolean>;
+  recordLiabilityPayment: (id: string, amount: number, accountId?: string) => Promise<boolean>;
+
+  // Actions - Shared Expenses (F3.6)
+  addSharedExpense: (
+    expense: Omit<SharedExpense, 'id' | 'createdAt' | 'isSettled'> & { isSettled?: boolean }
+  ) => Promise<SharedExpense>;
+  settleSharedExpense: (id: string) => Promise<boolean>;
+  deleteSharedExpense: (id: string) => Promise<boolean>;
+
+  // Actions - Budget Rollovers (F3.2)
+  applyBudgetRollovers: () => Promise<void>;
+}
+
+export function computeDerivedState(
+  accounts: Account[],
+  transactions: Transaction[],
+  budgets: Budget[],
+  savingsGoals: SavingsGoal[],
+  recurringPayments: RecurringPayment[],
+  liabilities: Liability[] = [],
+  currencySymbol: string = '₹'
+) {
+  const overview = FinancialCalculationsService.calculateOverview(
+    accounts,
+    transactions,
+    savingsGoals,
+    new Date(),
+    liabilities
+  );
+  const insights = InsightsService.generateInsights(
+    transactions,
+    accounts,
+    budgets,
+    savingsGoals,
+    currencySymbol
+  );
+  const forecast = ForecastService.calculateMonthEndForecast(
+    accounts,
+    transactions,
+    recurringPayments
+  );
+  return { overview, insights, forecast };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -152,17 +209,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   learnedMerchantRules: [],
   detectionDiagnostics: [],
   autoRecordedNotice: null,
+  liabilities: [],
+  sharedExpenses: [],
 
-  overview: FinancialCalculationsService.calculateOverview(
+  ...computeDerivedState(
     INITIAL_ACCOUNTS,
     INITIAL_TRANSACTIONS,
-    INITIAL_SAVINGS_GOALS
-  ),
-  insights: InsightsService.generateInsights(
-    INITIAL_TRANSACTIONS,
-    INITIAL_ACCOUNTS,
     INITIAL_BUDGETS,
     INITIAL_SAVINGS_GOALS,
+    INITIAL_RECURRING_PAYMENTS,
+    [],
     INITIAL_USER_SETTINGS.currencySymbol
   ),
 
@@ -179,6 +235,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         savedDetected,
         savedLearnedRules,
         savedDiagnostics,
+        savedLiabilities,
+        savedSharedExpenses,
       ] = await Promise.all([
         StorageService.getItem<Account[]>(STORAGE_KEYS.ACCOUNTS, INITIAL_ACCOUNTS),
         StorageService.getItem<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS),
@@ -190,14 +248,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.getItem<DetectedTransaction[]>(STORAGE_KEYS.DETECTED_TRANSACTIONS, []),
         StorageService.getItem<LearnedMerchantRule[]>(STORAGE_KEYS.LEARNED_RULES, []),
         StorageService.getItem<DetectionDiagnosticEvent[]>(STORAGE_KEYS.DETECTION_DIAGNOSTICS, []),
+        StorageService.getItem<Liability[]>(STORAGE_KEYS.LIABILITIES, []),
+        StorageService.getItem<SharedExpense[]>(STORAGE_KEYS.SHARED_EXPENSES, []),
       ]);
 
-      const overview = FinancialCalculationsService.calculateOverview(savedAccounts, savedTransactions, savedGoals);
-      const insights = InsightsService.generateInsights(
-        savedTransactions,
+      const derived = computeDerivedState(
         savedAccounts,
+        savedTransactions,
         savedBudgets,
         savedGoals,
+        savedRecurring,
+        savedLiabilities || [],
         savedSettings.currencySymbol
       );
 
@@ -243,8 +304,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         isNotificationAccessGranted: isAccessGranted,
         learnedMerchantRules: savedLearnedRules || [],
         detectionDiagnostics: savedDiagnostics || [],
-        overview,
-        insights,
+        liabilities: savedLiabilities || [],
+        sharedExpenses: savedSharedExpenses || [],
+        ...derived,
       });
 
       // Catch-up auto-recording for due recurring payments
@@ -271,16 +333,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetToDefaults: async () => {
     await StorageService.clearAll();
-    const overview = FinancialCalculationsService.calculateOverview(
+    const derived = computeDerivedState(
       INITIAL_ACCOUNTS,
       INITIAL_TRANSACTIONS,
-      INITIAL_SAVINGS_GOALS
-    );
-    const insights = InsightsService.generateInsights(
-      INITIAL_TRANSACTIONS,
-      INITIAL_ACCOUNTS,
       INITIAL_BUDGETS,
       INITIAL_SAVINGS_GOALS,
+      INITIAL_RECURRING_PAYMENTS,
+      [],
       INITIAL_USER_SETTINGS.currencySymbol
     );
     set({
@@ -294,8 +353,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       detectedTransactions: [],
       learnedMerchantRules: [],
       detectionDiagnostics: [],
-      overview,
-      insights,
+      liabilities: [],
+      sharedExpenses: [],
+      ...derived,
     });
   },
 
@@ -321,12 +381,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         StorageService.setItem(STORAGE_KEYS.LEARNED_RULES, learnedMerchantRules),
       ]);
 
-      const overview = FinancialCalculationsService.calculateOverview(accounts, transactions, savingsGoals);
-      const insights = InsightsService.generateInsights(
-        transactions,
+      const derived = computeDerivedState(
         accounts,
+        transactions,
         budgets,
         savingsGoals,
+        recurringPayments,
+        get().liabilities,
         settings.currencySymbol
       );
 
@@ -339,8 +400,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         categories,
         settings,
         learnedMerchantRules,
-        overview,
-        insights,
+        ...derived,
       });
       return true;
     } catch (e) {
@@ -415,12 +475,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, updatedGoals),
     ]);
 
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, updatedTransactions, updatedGoals);
-    const insights = InsightsService.generateInsights(
-      updatedTransactions,
+    const derived = computeDerivedState(
       updatedAccounts,
+      updatedTransactions,
       state.budgets,
       updatedGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
@@ -428,8 +489,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       transactions: updatedTransactions,
       accounts: updatedAccounts,
       savingsGoals: updatedGoals,
-      overview,
-      insights,
+      ...derived,
     });
 
     return newTx;
@@ -485,20 +545,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts),
     ]);
 
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, updatedTransactions, state.savingsGoals);
-    const insights = InsightsService.generateInsights(
-      updatedTransactions,
+    const derived = computeDerivedState(
       updatedAccounts,
+      updatedTransactions,
       state.budgets,
       state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
     set({
       transactions: updatedTransactions,
       accounts: updatedAccounts,
-      overview,
-      insights,
+      ...derived,
     });
 
     return true;
@@ -547,12 +607,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, updatedGoals),
     ]);
 
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, updatedTransactions, updatedGoals);
-    const insights = InsightsService.generateInsights(
-      updatedTransactions,
+    const derived = computeDerivedState(
       updatedAccounts,
+      updatedTransactions,
       state.budgets,
       updatedGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
@@ -560,8 +621,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       transactions: updatedTransactions,
       accounts: updatedAccounts,
       savingsGoals: updatedGoals,
-      overview,
-      insights,
+      ...derived,
     });
 
     return true;
@@ -589,9 +649,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedAccounts = [...state.accounts, newAccount];
 
     await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, state.transactions, state.savingsGoals);
+    const derived = computeDerivedState(
+      updatedAccounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
+      state.settings.currencySymbol
+    );
 
-    set({ accounts: updatedAccounts, overview });
+    set({ accounts: updatedAccounts, ...derived });
     return newAccount;
   },
 
@@ -600,9 +668,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedAccounts = state.accounts.map((acc) => (acc.id === id ? { ...acc, ...updated } : acc));
 
     await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, state.transactions, state.savingsGoals);
+    const derived = computeDerivedState(
+      updatedAccounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
+      state.settings.currencySymbol
+    );
 
-    set({ accounts: updatedAccounts, overview });
+    set({ accounts: updatedAccounts, ...derived });
     return true;
   },
 
@@ -610,9 +686,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const updatedAccounts = state.accounts.filter((acc) => acc.id !== id);
     await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
-    const overview = FinancialCalculationsService.calculateOverview(updatedAccounts, state.transactions, state.savingsGoals);
+    const derived = computeDerivedState(
+      updatedAccounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
+      state.settings.currencySymbol
+    );
 
-    set({ accounts: updatedAccounts, overview });
+    set({ accounts: updatedAccounts, ...derived });
     return true;
   },
 
@@ -709,16 +793,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedGoals = [...state.savingsGoals, newGoal];
 
     await StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, updatedGoals);
-    const overview = FinancialCalculationsService.calculateOverview(state.accounts, state.transactions, updatedGoals);
-    const insights = InsightsService.generateInsights(
-      state.transactions,
+    const derived = computeDerivedState(
       state.accounts,
+      state.transactions,
       state.budgets,
       updatedGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
-    set({ savingsGoals: updatedGoals, overview, insights });
+    set({ savingsGoals: updatedGoals, ...derived });
     return newGoal;
   },
 
@@ -727,16 +812,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedGoals = state.savingsGoals.map((g) => (g.id === id ? { ...g, ...updated } : g));
 
     await StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, updatedGoals);
-    const overview = FinancialCalculationsService.calculateOverview(state.accounts, state.transactions, updatedGoals);
-    const insights = InsightsService.generateInsights(
-      state.transactions,
+    const derived = computeDerivedState(
       state.accounts,
+      state.transactions,
       state.budgets,
       updatedGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
-    set({ savingsGoals: updatedGoals, overview, insights });
+    set({ savingsGoals: updatedGoals, ...derived });
     return true;
   },
 
@@ -745,16 +831,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedGoals = state.savingsGoals.filter((g) => g.id !== id);
 
     await StorageService.setItem(STORAGE_KEYS.SAVINGS_GOALS, updatedGoals);
-    const overview = FinancialCalculationsService.calculateOverview(state.accounts, state.transactions, updatedGoals);
-    const insights = InsightsService.generateInsights(
-      state.transactions,
+    const derived = computeDerivedState(
       state.accounts,
+      state.transactions,
       state.budgets,
       updatedGoals,
+      state.recurringPayments,
+      state.liabilities,
       state.settings.currencySymbol
     );
 
-    set({ savingsGoals: updatedGoals, overview, insights });
+    set({ savingsGoals: updatedGoals, ...derived });
     return true;
   },
 
@@ -1482,5 +1569,184 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearDiagnostics: async () => {
     set({ detectionDiagnostics: [] });
     await StorageService.setItem(STORAGE_KEYS.DETECTION_DIAGNOSTICS, []);
+  },
+
+  // Actions - Liabilities (F3.5)
+  addLiability: async (liabilityData) => {
+    const state = get();
+    const id = `lia-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const newLiability: Liability = {
+      ...liabilityData,
+      id,
+      createdAt: new Date().toISOString(),
+      isPaidOff: (liabilityData.remainingAmount || 0) <= 0,
+    };
+    const updatedLiabilities = [newLiability, ...state.liabilities];
+    await StorageService.setItem(STORAGE_KEYS.LIABILITIES, updatedLiabilities);
+    const derived = computeDerivedState(
+      state.accounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      updatedLiabilities,
+      state.settings.currencySymbol
+    );
+    set({ liabilities: updatedLiabilities, ...derived });
+    return newLiability;
+  },
+
+  updateLiability: async (id, updated) => {
+    const state = get();
+    const index = state.liabilities.findIndex((l) => l.id === id);
+    if (index === -1) return false;
+    const updatedItem = { ...state.liabilities[index], ...updated };
+    if (updatedItem.remainingAmount !== undefined) {
+      updatedItem.isPaidOff = updatedItem.remainingAmount <= 0;
+    }
+    const updatedLiabilities = [...state.liabilities];
+    updatedLiabilities[index] = updatedItem;
+    await StorageService.setItem(STORAGE_KEYS.LIABILITIES, updatedLiabilities);
+    const derived = computeDerivedState(
+      state.accounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      updatedLiabilities,
+      state.settings.currencySymbol
+    );
+    set({ liabilities: updatedLiabilities, ...derived });
+    return true;
+  },
+
+  deleteLiability: async (id) => {
+    const state = get();
+    const updatedLiabilities = state.liabilities.filter((l) => l.id !== id);
+    await StorageService.setItem(STORAGE_KEYS.LIABILITIES, updatedLiabilities);
+    const derived = computeDerivedState(
+      state.accounts,
+      state.transactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      updatedLiabilities,
+      state.settings.currencySymbol
+    );
+    set({ liabilities: updatedLiabilities, ...derived });
+    return true;
+  },
+
+  recordLiabilityPayment: async (id, amount, accountId) => {
+    const state = get();
+    const liability = state.liabilities.find((l) => l.id === id);
+    if (!liability) return false;
+
+    const newRemaining = Math.max(0, liability.remainingAmount - amount);
+    const isPaidOff = newRemaining === 0;
+
+    const updatedLiabilities = state.liabilities.map((l) =>
+      l.id === id ? { ...l, remainingAmount: newRemaining, isPaidOff } : l
+    );
+
+    let updatedAccounts = state.accounts;
+    let updatedTransactions = state.transactions;
+
+    if (accountId) {
+      const account = state.accounts.find((a) => a.id === accountId);
+      if (account) {
+        updatedAccounts = state.accounts.map((a) =>
+          a.id === accountId ? { ...a, balance: a.balance - amount } : a
+        );
+        const newTx: Transaction = {
+          id: `tx-lia-${Date.now()}`,
+          title: `Payment: ${liability.name}`,
+          amount,
+          type: 'expense',
+          categoryId: 'cat-bills',
+          categoryName: 'Bills & Utilities',
+          categoryIcon: 'credit-card',
+          categoryColor: '#EF4444',
+          accountId,
+          accountName: account.name,
+          paymentMethod: 'UPI',
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+        updatedTransactions = [newTx, ...state.transactions];
+        await StorageService.setItem(STORAGE_KEYS.TRANSACTIONS, updatedTransactions);
+        await StorageService.setItem(STORAGE_KEYS.ACCOUNTS, updatedAccounts);
+      }
+    }
+
+    await StorageService.setItem(STORAGE_KEYS.LIABILITIES, updatedLiabilities);
+    const derived = computeDerivedState(
+      updatedAccounts,
+      updatedTransactions,
+      state.budgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      updatedLiabilities,
+      state.settings.currencySymbol
+    );
+
+    set({
+      liabilities: updatedLiabilities,
+      accounts: updatedAccounts,
+      transactions: updatedTransactions,
+      ...derived,
+    });
+    return true;
+  },
+
+  // Actions - Shared Expenses (F3.6)
+  addSharedExpense: async (expenseData) => {
+    const state = get();
+    const id = `sh-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const newExpense: SharedExpense = {
+      ...expenseData,
+      id,
+      createdAt: new Date().toISOString(),
+      isSettled: false,
+    };
+    const updatedShared = [newExpense, ...state.sharedExpenses];
+    await StorageService.setItem(STORAGE_KEYS.SHARED_EXPENSES, updatedShared);
+    set({ sharedExpenses: updatedShared });
+    return newExpense;
+  },
+
+  settleSharedExpense: async (id) => {
+    const state = get();
+    const updatedShared = state.sharedExpenses.map((s) =>
+      s.id === id ? { ...s, isSettled: true, settledAt: new Date().toISOString() } : s
+    );
+    await StorageService.setItem(STORAGE_KEYS.SHARED_EXPENSES, updatedShared);
+    set({ sharedExpenses: updatedShared });
+    return true;
+  },
+
+  deleteSharedExpense: async (id) => {
+    const state = get();
+    const updatedShared = state.sharedExpenses.filter((s) => s.id !== id);
+    await StorageService.setItem(STORAGE_KEYS.SHARED_EXPENSES, updatedShared);
+    set({ sharedExpenses: updatedShared });
+    return true;
+  },
+
+  // Actions - Budget Rollovers (F3.2)
+  applyBudgetRollovers: async () => {
+    const state = get();
+    const updatedBudgets = BudgetService.calculateRollovers(state.budgets, state.transactions);
+    await StorageService.setItem(STORAGE_KEYS.BUDGETS, updatedBudgets);
+    const derived = computeDerivedState(
+      state.accounts,
+      state.transactions,
+      updatedBudgets,
+      state.savingsGoals,
+      state.recurringPayments,
+      state.liabilities,
+      state.settings.currencySymbol
+    );
+    set({ budgets: updatedBudgets, ...derived });
   },
 }));
