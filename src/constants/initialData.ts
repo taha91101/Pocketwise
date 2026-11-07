@@ -375,6 +375,14 @@ export const INITIAL_USER_SETTINGS: UserSettings = {
   lockTimeout: 'immediate',
   hasCompletedOnboarding: false,
   hasCompletedWalkthrough: false,
+  language: 'en',
+  numberGrouping: 'lakhs',
+  exchangeRates: {
+    USD: 85.5,
+    EUR: 92.0,
+    GBP: 108.5,
+    AED: 23.3,
+  },
 };
 
 /**

@@ -92,6 +92,9 @@ export interface Account {
   icon: string;
   color: string;
   accountNumberMasked?: string;
+  currency?: string;
+  currencySymbol?: string;
+  exchangeRateToPrimary?: number;
 }
 
 export interface Budget {
@@ -189,6 +192,9 @@ export interface UserSettings {
   providerAccountMappings?: Record<string, string>; // e.g. { 'Google Pay': 'acc-1', 'HDFC Bank': 'acc-1' }
   hasCompletedOnboarding: boolean;
   hasCompletedWalkthrough: boolean;
+  language?: 'en' | 'hi';
+  numberGrouping?: 'lakhs' | 'millions';
+  exchangeRates?: Record<string, number>;
 }
 
 export interface LearnedMerchantRule {

@@ -72,9 +72,23 @@ export class FinancialCalculationsService {
 
   /**
    * Calculate Total Available Balance across all accounts.
+   * Supports per-account exchange rates when multi-currency is active.
    */
-  public static calculateTotalAccountBalance(accounts: Account[]): number {
-    return accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+  public static calculateTotalAccountBalance(
+    accounts: Account[],
+    targetCurrency?: string,
+    exchangeRates?: Record<string, number>
+  ): number {
+    return accounts.reduce((sum, acc) => {
+      let balance = Number(acc.balance || 0);
+      if (acc.exchangeRateToPrimary && acc.exchangeRateToPrimary > 0) {
+        balance = balance * acc.exchangeRateToPrimary;
+      } else if (targetCurrency && acc.currency && acc.currency !== targetCurrency && exchangeRates) {
+        const rate = exchangeRates[acc.currency] || 1;
+        balance = balance * rate;
+      }
+      return sum + balance;
+    }, 0);
   }
 
   /**
@@ -306,12 +320,18 @@ export class FinancialCalculationsService {
   }
 
   /**
-   * Format currency values nicely (e.g. ₹52,450)
+   * Format currency values nicely (e.g. ₹52,450 or ₹1,50,000)
+   * Supports Indian number grouping ('lakhs') and international ('millions')
    */
-  public static formatCurrency(amount: number, symbol: string = '₹'): string {
+  public static formatCurrency(
+    amount: number,
+    symbol: string = '₹',
+    numberGrouping: 'lakhs' | 'millions' = 'lakhs'
+  ): string {
     const isNegative = amount < 0;
     const absVal = Math.abs(amount);
-    const formatted = new Intl.NumberFormat('en-IN', {
+    const locale = numberGrouping === 'millions' ? 'en-US' : 'en-IN';
+    const formatted = new Intl.NumberFormat(locale, {
       maximumFractionDigits: 0,
     }).format(absVal);
 

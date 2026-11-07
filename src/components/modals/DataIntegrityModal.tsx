@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   ScrollView,
@@ -37,17 +37,17 @@ export const DataIntegrityModal: React.FC<DataIntegrityModalProps> = ({
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairSuccessMessage, setRepairSuccessMessage] = useState('');
 
-  const runAudit = () => {
+  const runAudit = useCallback(() => {
     const rep = auditDataIntegrity();
     setReport(rep);
-  };
+  }, [auditDataIntegrity]);
 
   useEffect(() => {
     if (visible) {
       setRepairSuccessMessage('');
       runAudit();
     }
-  }, [visible]);
+  }, [visible, runAudit]);
 
   const handleRepair = async () => {
     try {

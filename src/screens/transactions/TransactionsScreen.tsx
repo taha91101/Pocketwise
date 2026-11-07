@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -382,6 +383,10 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.listContent, { paddingHorizontal: spacing.lg, paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        initialNumToRender={12}
+        removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={<PendingDetectedTransactionsBanner />}
         renderItem={({ item }) => (
           <TransactionItem

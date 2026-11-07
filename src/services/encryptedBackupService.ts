@@ -142,7 +142,7 @@ export class EncryptedBackupService {
           false,
           ['encrypt', 'decrypt']
         );
-      } catch (e) {
+      } catch {
         // Fallback below
       }
     }
@@ -186,7 +186,7 @@ export class EncryptedBackupService {
           dataBuf
         );
         ciphertextB64 = this.bufToBase64(new Uint8Array(encrypted));
-      } catch (e) {
+      } catch {
         ciphertextB64 = '';
       }
     }
@@ -235,7 +235,7 @@ export class EncryptedBackupService {
           cipherBuf
         );
         plaintext = this.utf8ToStr(new Uint8Array(decrypted));
-      } catch (e) {
+      } catch {
         // Will throw below if verification fails
       }
     }

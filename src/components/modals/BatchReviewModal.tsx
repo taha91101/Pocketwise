@@ -12,9 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { AppText } from '../common/AppText';
 import { AppButton } from '../common/AppButton';
-import { CategoryIcon } from '../common/CategoryIcon';
 import { useAppStore } from '../../store/useAppStore';
-import { Category, DetectedTransaction } from '../../types';
 
 export interface BatchReviewModalProps {
   visible: boolean;

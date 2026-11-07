@@ -25,6 +25,7 @@ import { SecurityService } from '../../services/securityService';
 import { ManageCategoriesModal } from '../../components/modals/ManageCategoriesModal';
 import { DataIntegrityModal } from '../../components/modals/DataIntegrityModal';
 import { AccountReconciliationModal } from '../../components/modals/AccountReconciliationModal';
+import { PrivacyPolicyModal } from '../../components/modals/PrivacyPolicyModal';
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, spacing, radius, shadows, isDark } = useTheme();
@@ -68,8 +69,11 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [isDataIntegrityModalOpen, setIsDataIntegrityModalOpen] = useState(false);
   const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
 
-  // Currency modal
+  // Currency & Region modals
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
+  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
+  const [isNumberFormatModalOpen, setIsNumberFormatModalOpen] = useState(false);
+  const [isPrivacyPolicyModalOpen, setIsPrivacyPolicyModalOpen] = useState(false);
 
   // Categories modal
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
@@ -389,7 +393,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
           <TouchableOpacity
             onPress={() => setIsCurrencyModalOpen(true)}
-            style={[styles.groupRow, { padding: spacing.md }]}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Feather name="dollar-sign" size={18} color={colors.primary} style={{ marginRight: 10 }} />
@@ -400,6 +404,42 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <AppText variant="subtitle2" color={colors.primary} weight="700">
                 {settings.currencySymbol} ({settings.currency})
+              </AppText>
+              <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsLanguageModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Feather name="globe" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <AppText variant="body2" weight="600">
+                Language
+              </AppText>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppText variant="subtitle2" color={colors.primary} weight="700">
+                {settings.language === 'hi' ? 'हिन्दी (Hindi)' : 'English'}
+              </AppText>
+              <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsNumberFormatModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Feather name="hash" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <AppText variant="body2" weight="600">
+                Number Grouping
+              </AppText>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppText variant="subtitle2" color={colors.primary} weight="700">
+                {settings.numberGrouping === 'millions' ? '100,000 (Millions)' : '1,00,000 (Lakhs)'}
               </AppText>
               <Feather name="chevron-right" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
             </View>
@@ -851,7 +891,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
           <TouchableOpacity
             onPress={() => setIsReconcileModalOpen(true)}
-            style={[styles.groupRow, { padding: spacing.md }]}
+            style={[styles.groupRow, { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight }]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Feather name="sliders" size={18} color={colors.primary} style={{ marginRight: 10 }} />
@@ -861,6 +901,24 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 </AppText>
                 <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
                   Reconcile balances against bank statements
+                </AppText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsPrivacyPolicyModalOpen(true)}
+            style={[styles.groupRow, { padding: spacing.md }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Feather name="shield" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body2" weight="600">
+                  Privacy Policy & Data Safety
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 1 }}>
+                  Zero cloud storage, on-device parsing disclosure
                 </AppText>
               </View>
             </View>
@@ -947,6 +1005,154 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 );
               })}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Language Modal */}
+      <Modal visible={isLanguageModalOpen} animationType="slide" transparent>
+        <View
+          style={[
+            styles.modalBackdrop,
+            {
+              backgroundColor: colors.backdrop,
+              paddingTop: Math.max(insets.top, 20),
+              paddingBottom: Math.max(insets.bottom, 20),
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderRadius: radius.xxl,
+                padding: spacing.lg,
+                maxWidth: Math.min(width - 32, 420),
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <AppText variant="h3" weight="700">
+                Select Language
+              </AppText>
+              <TouchableOpacity onPress={() => setIsLanguageModalOpen(false)}>
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {[
+              { code: 'en', label: 'English', sub: 'Default interface language' },
+              { code: 'hi', label: 'हिन्दी (Hindi)', sub: 'भारतीय भाषा समर्थन' },
+            ].map((lang) => {
+              const isSelected = (settings.language || 'en') === lang.code;
+              return (
+                <TouchableOpacity
+                  key={lang.code}
+                  onPress={() => {
+                    updateSettings({ language: lang.code as any });
+                    setIsLanguageModalOpen(false);
+                  }}
+                  style={[
+                    styles.currencyRow,
+                    {
+                      backgroundColor: isSelected ? colors.primaryLight + '20' : 'transparent',
+                      borderRadius: radius.md,
+                      padding: spacing.md,
+                      marginBottom: spacing.xs,
+                    },
+                  ]}
+                >
+                  <View>
+                    <AppText
+                      variant="body2"
+                      weight={isSelected ? '700' : '500'}
+                      color={isSelected ? colors.primary : colors.textPrimary}
+                    >
+                      {lang.label}
+                    </AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      {lang.sub}
+                    </AppText>
+                  </View>
+                  {isSelected && <Feather name="check" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Number Grouping Format Modal */}
+      <Modal visible={isNumberFormatModalOpen} animationType="slide" transparent>
+        <View
+          style={[
+            styles.modalBackdrop,
+            {
+              backgroundColor: colors.backdrop,
+              paddingTop: Math.max(insets.top, 20),
+              paddingBottom: Math.max(insets.bottom, 20),
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderRadius: radius.xxl,
+                padding: spacing.lg,
+                maxWidth: Math.min(width - 32, 420),
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <AppText variant="h3" weight="700">
+                Number Grouping System
+              </AppText>
+              <TouchableOpacity onPress={() => setIsNumberFormatModalOpen(false)}>
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {[
+              { code: 'lakhs', label: 'Indian System (Lakhs & Crores)', example: '₹1,50,000 / ₹1,25,00,000' },
+              { code: 'millions', label: 'International System (Millions)', example: '$150,000 / $12,500,000' },
+            ].map((fmt) => {
+              const isSelected = (settings.numberGrouping || 'lakhs') === fmt.code;
+              return (
+                <TouchableOpacity
+                  key={fmt.code}
+                  onPress={() => {
+                    updateSettings({ numberGrouping: fmt.code as any });
+                    setIsNumberFormatModalOpen(false);
+                  }}
+                  style={[
+                    styles.currencyRow,
+                    {
+                      backgroundColor: isSelected ? colors.primaryLight + '20' : 'transparent',
+                      borderRadius: radius.md,
+                      padding: spacing.md,
+                      marginBottom: spacing.xs,
+                    },
+                  ]}
+                >
+                  <View>
+                    <AppText
+                      variant="body2"
+                      weight={isSelected ? '700' : '500'}
+                      color={isSelected ? colors.primary : colors.textPrimary}
+                    >
+                      {fmt.label}
+                    </AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      Example: {fmt.example}
+                    </AppText>
+                  </View>
+                  {isSelected && <Feather name="check" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Modal>
@@ -1208,6 +1414,12 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       <AccountReconciliationModal
         visible={isReconcileModalOpen}
         onClose={() => setIsReconcileModalOpen(false)}
+      />
+
+      {/* Privacy Policy & Data Safety Modal (F5.4) */}
+      <PrivacyPolicyModal
+        visible={isPrivacyPolicyModalOpen}
+        onClose={() => setIsPrivacyPolicyModalOpen(false)}
       />
     </SafeAreaView>
   );

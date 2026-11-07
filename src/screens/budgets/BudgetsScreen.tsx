@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   FlatList,
+  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -71,6 +72,9 @@ export const BudgetsScreen: React.FC = () => {
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => setIsAddModalOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add category budget"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={[
             styles.addBtn,
             { backgroundColor: colors.primary, borderRadius: radius.full, ...shadows.soft },
@@ -85,6 +89,10 @@ export const BudgetsScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.listContent, { paddingHorizontal: spacing.lg, paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        initialNumToRender={8}
+        removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={() => {
           if (budgets.length === 0) return null;
           return (
@@ -261,7 +269,10 @@ export const BudgetsScreen: React.FC = () => {
 
                 <TouchableOpacity
                   onPress={() => setBudgetToDelete(item)}
-                  style={{ padding: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete budget ${item.name}`}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={{ padding: 8 }}
                 >
                   <Feather name="trash-2" size={16} color={colors.textMuted} />
                 </TouchableOpacity>

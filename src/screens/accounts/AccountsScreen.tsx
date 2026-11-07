@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   FlatList,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,7 @@ import { Feather } from '@expo/vector-icons';
 
 export const AccountsScreen: React.FC = () => {
   const { colors, spacing, radius, shadows } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const accounts = useAppStore((state) => state.accounts);
   const liabilities = useAppStore((state) => state.liabilities);
@@ -38,6 +39,16 @@ export const AccountsScreen: React.FC = () => {
   const deleteAccount = useAppStore((state) => state.deleteAccount);
   const deleteLiability = useAppStore((state) => state.deleteLiability);
   const currencySymbol = useAppStore((state) => state.settings.currencySymbol);
+  const settings = useAppStore((state) => state.settings);
+
+  const ACCOUNT_CURRENCIES = [
+    { code: 'INR', symbol: '₹', name: 'Indian Rupee', defaultRate: 1.0 },
+    { code: 'USD', symbol: '$', name: 'US Dollar', defaultRate: 85.5 },
+    { code: 'EUR', symbol: '€', name: 'Euro', defaultRate: 92.0 },
+    { code: 'GBP', symbol: '£', name: 'British Pound', defaultRate: 108.5 },
+    { code: 'AED', symbol: 'AED', name: 'UAE Dirham', defaultRate: 23.3 },
+    { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar', defaultRate: 61.5 },
+  ];
 
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
@@ -52,9 +63,16 @@ export const AccountsScreen: React.FC = () => {
   const [newAccName, setNewAccName] = useState('');
   const [newAccType, setNewAccType] = useState<AccountType>('bank');
   const [newAccBalance, setNewAccBalance] = useState('');
+  const [newAccCurrency, setNewAccCurrency] = useState(settings.currency || 'INR');
+  const [newAccCurrencySymbol, setNewAccCurrencySymbol] = useState(settings.currencySymbol || '₹');
+  const [newAccExchangeRate, setNewAccExchangeRate] = useState('1');
   const [accError, setAccError] = useState('');
 
-  const totalBalance = FinancialCalculationsService.calculateTotalAccountBalance(accounts);
+  const totalBalance = FinancialCalculationsService.calculateTotalAccountBalance(
+    accounts,
+    settings.currency,
+    settings.exchangeRates
+  );
 
   const handleSaveAccount = async () => {
     const bal = parseFloat(newAccBalance.replace(/,/g, ''));
@@ -83,17 +101,25 @@ export const AccountsScreen: React.FC = () => {
       investment: '#8B5CF6',
     };
 
+    const exchangeRate = parseFloat(newAccExchangeRate) || 1.0;
+
     await addAccount({
       name: newAccName.trim(),
       type: newAccType,
       balance: bal,
       icon: typeIcons[newAccType],
       color: typeColors[newAccType],
+      currency: newAccCurrency,
+      currencySymbol: newAccCurrencySymbol,
+      exchangeRateToPrimary: exchangeRate,
     });
 
     setIsAddAccountModalOpen(false);
     setNewAccName('');
     setNewAccBalance('');
+    setNewAccCurrency(settings.currency || 'INR');
+    setNewAccCurrencySymbol(settings.currencySymbol || '₹');
+    setNewAccExchangeRate('1');
     setAccError('');
   };
 
@@ -154,6 +180,10 @@ export const AccountsScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        initialNumToRender={8}
+        removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={() => {
           const totalAssets = totalBalance + (overview.totalSavings || 0);
           const totalLiabilities = overview.totalLiabilities || 0;
@@ -256,7 +286,13 @@ export const AccountsScreen: React.FC = () => {
                 </View>
               </View>
 
-              <TouchableOpacity onPress={() => setAccountToDelete(item)} style={{ padding: 6 }}>
+              <TouchableOpacity
+                onPress={() => setAccountToDelete(item)}
+                style={{ padding: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete account ${item.name}`}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <Feather name="trash-2" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -271,8 +307,21 @@ export const AccountsScreen: React.FC = () => {
                   weight="800"
                   color={item.balance < 0 ? colors.error : colors.textPrimary}
                 >
-                  {FinancialCalculationsService.formatCurrency(item.balance, currencySymbol)}
+                  {FinancialCalculationsService.formatCurrency(
+                    item.balance,
+                    item.currencySymbol || currencySymbol,
+                    settings.numberGrouping || 'lakhs'
+                  )}
                 </AppText>
+                {item.currencySymbol && item.currencySymbol !== currencySymbol && (
+                  <AppText variant="caption" color={colors.primary} weight="600" style={{ marginTop: 2 }}>
+                    ≈ {FinancialCalculationsService.formatCurrency(
+                      item.balance * (item.exchangeRateToPrimary || 1),
+                      currencySymbol,
+                      settings.numberGrouping || 'lakhs'
+                    )} (1 {item.currency} = {item.exchangeRateToPrimary} {currencySymbol})
+                  </AppText>
+                )}
               </View>
 
               <TouchableOpacity
@@ -280,6 +329,9 @@ export const AccountsScreen: React.FC = () => {
                   setAccountToReconcile(item);
                   setIsReconcileModalOpen(true);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Reconcile balance for ${item.name}`}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={[
                   styles.reconcileBtn,
                   {
@@ -559,6 +611,52 @@ export const AccountsScreen: React.FC = () => {
                   );
                 })}
               </ScrollView>
+
+              <AppText variant="subtitle2" color={colors.textSecondary} style={{ marginBottom: spacing.xs }}>
+                Account Currency
+              </AppText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                {ACCOUNT_CURRENCIES.map((c) => {
+                  const isSelected = newAccCurrency === c.code;
+                  return (
+                    <TouchableOpacity
+                      key={c.code}
+                      onPress={() => {
+                        setNewAccCurrency(c.code);
+                        setNewAccCurrencySymbol(c.symbol);
+                        setNewAccExchangeRate(c.code === (settings.currency || 'INR') ? '1' : c.defaultRate.toString());
+                      }}
+                      style={[
+                        styles.typeChip,
+                        {
+                          backgroundColor: isSelected ? colors.primaryLight : colors.surfaceVariant,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          borderRadius: radius.lg,
+                        },
+                      ]}
+                    >
+                      <AppText
+                        variant="caption"
+                        weight={isSelected ? '700' : '500'}
+                        color={isSelected ? colors.primary : colors.textPrimary}
+                      >
+                        {c.code} ({c.symbol})
+                      </AppText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {newAccCurrency !== (settings.currency || 'INR') && (
+                <AppInput
+                  label={`Exchange Rate (1 ${newAccCurrency} = X ${currencySymbol})`}
+                  placeholder="e.g. 85.5"
+                  keyboardType="numeric"
+                  value={newAccExchangeRate}
+                  onChangeText={setNewAccExchangeRate}
+                  iconName="refresh-cw"
+                />
+              )}
 
               {accError ? (
                 <AppText variant="caption" color={colors.error} style={{ marginBottom: spacing.sm }}>
